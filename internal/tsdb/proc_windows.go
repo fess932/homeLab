@@ -10,6 +10,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// В Windows нет SIGHUP, и POST /-/reload у VictoriaMetrics ничего не делает. Поэтому
+// она сама перечитывает файл конфигурации сбора, если он изменился; Reconciler
+// по-прежнему дожидается роста vm_promscrape_config_reloads_total.
+var platformArgs = []string{"-promscrape.configCheckInterval=2s"}
+
 // Отдельная группа процессов нужна, чтобы CTRL_BREAK_EVENT получила только TSDB:
 // Go-рантайм VictoriaMetrics превращает его в SIGINT и штатно сбрасывает данные.
 func setProcAttr(cmd *exec.Cmd) {

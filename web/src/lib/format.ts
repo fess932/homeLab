@@ -70,6 +70,12 @@ export function formatValue(v: number | null | undefined, unit: Unit = '', decim
       return `${formatNumber(v, decimals ?? 1)} ${messages.units.celsius}`
     case 'bool':
       return v !== 0 ? messages.units.boolTrue : messages.units.boolFalse
+    case 'ppm':
+      return `${formatNumber(v, decimals ?? 0)} ${messages.units.ppm}`
+    case 'ugm3':
+      return `${formatNumber(v, decimals ?? 0)} ${messages.units.ugm3}`
+    case 'mgm3':
+      return `${formatNumber(v, decimals ?? 3)} ${messages.units.mgm3}`
     default:
       return formatNumber(v, decimals ?? autoDecimals(v, 2))
   }

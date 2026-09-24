@@ -22,11 +22,11 @@ const (
 )
 
 var (
-	PresetVars  = []string{"source_id", "service_id", "instance"}
+	PresetVars  = []string{"source_id", "service_id", "device_id", "instance"}
 	labelRe     = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 	reserved    = []string{"source_id", "job", "instance", "service_id"}
 	iconRe      = regexp.MustCompile(`^(builtin:[a-z0-9-]{1,40}|asset:ast_[a-z0-9]{14})?$`)
-	presetVarRe = regexp.MustCompile(`\$(source_id|service_id|instance)\b`)
+	presetVarRe = regexp.MustCompile(`\$(source_id|service_id|device_id|instance)\b`)
 )
 
 type ServiceInput struct {
@@ -266,12 +266,16 @@ func (s *SourceInput) Validate() error {
 	return v.err()
 }
 
+// SecretKey — ключ шифрования устройства (например, local_key Tuya). В HTTP не отправляется.
+const SecretKey = "key"
+
 type SecretInput struct {
 	Name     string `json:"name"`
 	Kind     string `json:"kind"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Token    string `json:"token"`
+	Key      string `json:"key"`
 }
 
 type Secret struct {
@@ -291,8 +295,10 @@ func (s *SecretInput) Validate() error {
 		v.check(len(s.Password) <= 4096, "password", "слишком длинный")
 	case "bearer":
 		v.check(s.Token != "" && len(s.Token) <= 8192, "token", "обязательное поле")
+	case SecretKey:
+		v.check(s.Key != "" && len(s.Key) <= 256, "key", "обязательное поле")
 	default:
-		v.add("kind", "basic или bearer")
+		v.add("kind", "basic, bearer или key")
 	}
 	return v.err()
 }
@@ -327,7 +333,7 @@ type Preset struct {
 	Revision int64    `json:"revision"`
 }
 
-var Units = []string{"", "percent", "percent_unit", "bytes", "bytes_per_second", "seconds", "milliseconds", "count", "per_second", "celsius", "bool"}
+var Units = []string{"", "percent", "percent_unit", "bytes", "bytes_per_second", "seconds", "milliseconds", "count", "per_second", "celsius", "bool", "ppm", "ugm3", "mgm3"}
 
 func (p *PresetInput) Normalize() {
 	p.Title = strings.TrimSpace(p.Title)

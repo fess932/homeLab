@@ -4,6 +4,9 @@ import type {
   Check,
   CheckInput,
   ConfigRevision,
+  Device,
+  DeviceInput,
+  DeviceStatus,
   ImportFormat,
   ImportPreview,
   InstantQuery,
@@ -87,6 +90,11 @@ export function createApi(http: Http) {
       ...crud<Source, SourceInput>('/api/v1/sources'),
       test: (id: string) => r<SourceTestResult>(`/api/v1/sources/${enc(id)}/test`, { method: 'POST' }),
       testDraft: (input: SourceInput) => r<SourceTestResult>('/api/v1/sources/test', { method: 'POST', body: input }),
+    },
+    devices: {
+      ...crud<Device, DeviceInput>('/api/v1/devices'),
+      test: (input: DeviceInput & { secret?: SecretInput }) =>
+        r<DeviceStatus>('/api/v1/devices/test', { method: 'POST', body: input }),
     },
     secrets: {
       list: () => r<Secret[]>('/api/v1/secrets'),

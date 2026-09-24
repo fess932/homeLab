@@ -277,8 +277,9 @@ type SecretRecord struct {
 }
 
 func (s *Store) ListSecrets(ctx context.Context) ([]model.Secret, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT s.id, s.name, s.kind, s.mask, coalesce(json_group_array(src.id) FILTER (WHERE src.id IS NOT NULL), '[]')
-		FROM secrets s LEFT JOIN sources src ON src.secret_id = s.id GROUP BY s.id ORDER BY s.name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT s.id, s.name, s.kind, s.mask,
+		(SELECT json_group_array(u.id) FROM (SELECT id FROM sources WHERE secret_id = s.id UNION ALL SELECT id FROM devices WHERE secret_id = s.id) u)
+		FROM secrets s ORDER BY s.name`)
 	if err != nil {
 		return nil, err
 	}

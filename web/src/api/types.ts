@@ -240,7 +240,7 @@ export interface SourceTestResult {
   error: string
 }
 
-export type SecretKind = 'basic' | 'bearer'
+export type SecretKind = 'basic' | 'bearer' | 'key'
 
 export interface SecretInput {
   name: string
@@ -248,6 +248,7 @@ export interface SecretInput {
   username?: string
   password?: string
   token?: string
+  key?: string
 }
 
 export interface Secret {
@@ -256,6 +257,64 @@ export interface Secret {
   kind: SecretKind
   mask: string
   used_by: string[]
+}
+
+export type DeviceKind = 'tuya' | 'http_json'
+export type TuyaVersion = 'auto' | '3.3' | '3.4' | '3.5'
+
+export interface TuyaDP {
+  dp: string
+  code: string
+  type: string
+  unit: string
+  scale: number
+  range?: string[]
+}
+
+export interface JSONField {
+  path: string
+  key: string
+  unit: Unit
+  scale: number
+}
+
+export interface DeviceInput {
+  name: string
+  kind: DeviceKind
+  address: string
+  interval_s: number
+  timeout_s: number
+  labels: Record<string, string>
+  secret_id: string | null
+  enabled: boolean
+  tuya?: { device_id: string; version: TuyaVersion; schema: TuyaDP[] }
+  http_json?: { fields: JSONField[] }
+}
+
+export interface Reading {
+  key: string
+  unit: Unit
+  value: number
+  state?: string
+}
+
+export type DeviceErrorKind = '' | 'dns' | 'connect' | 'timeout' | 'http_status' | 'forbidden_address' | 'tls' | 'auth' | 'protocol' | 'parse'
+
+export interface DeviceStatus {
+  state: 'pending' | 'up' | 'down' | 'disabled'
+  last_attempt?: string | null
+  last_success?: string | null
+  duration_ms?: number | null
+  error?: string
+  error_kind?: DeviceErrorKind
+  protocol?: string
+  readings: Reading[]
+}
+
+export interface Device extends DeviceInput {
+  id: string
+  revision: number
+  status: DeviceStatus
 }
 
 export type ThresholdColor = 'ok' | 'warn' | 'crit'
@@ -276,6 +335,9 @@ export type Unit =
   | 'per_second'
   | 'celsius'
   | 'bool'
+  | 'ppm'
+  | 'ugm3'
+  | 'mgm3'
 
 export interface QueryPresetInput {
   title: string
@@ -286,7 +348,7 @@ export interface QueryPresetInput {
   min_step_s?: number
 }
 
-export type PresetCategory = 'homedeck' | 'tsdb' | 'node' | 'container' | 'probe' | 'custom'
+export type PresetCategory = 'homedeck' | 'tsdb' | 'node' | 'container' | 'probe' | 'device' | 'custom'
 
 export interface QueryPreset extends QueryPresetInput {
   id: string

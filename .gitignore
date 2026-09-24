@@ -32,7 +32,8 @@ go.work.sum
 # .vscode/
 
 .bin/
-/data/
+# Каталоги данных локальных запусков: ./data и любые data-* (демо, тесты)
+/data*/
 /homedeck
 web/node_modules/
 web/dist/*

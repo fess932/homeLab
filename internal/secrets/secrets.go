@@ -19,6 +19,7 @@ type Payload struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 	Token    string `json:"token,omitempty"`
+	Key      string `json:"key,omitempty"`
 }
 
 type Box struct {

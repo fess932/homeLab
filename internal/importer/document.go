@@ -15,7 +15,8 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const SchemaVersion = 1
+// SchemaVersion 2 добавил устройства; документы версии 1 читаются как раньше.
+const SchemaVersion = 2
 
 var docIDRe = regexp.MustCompile(`^[a-z][a-z0-9]*_[a-z0-9_-]{1,50}$`)
 
@@ -27,6 +28,7 @@ type Document struct {
 	Pages         []DocPage    `json:"pages"`
 	Services      []DocService `json:"services"`
 	Sources       []DocSource  `json:"sources"`
+	Devices       []DocDevice  `json:"devices"`
 	Presets       []DocPreset  `json:"presets"`
 }
 
@@ -64,6 +66,11 @@ type DocSource struct {
 	model.SourceInput
 }
 
+type DocDevice struct {
+	ID string `json:"id"`
+	model.DeviceInput
+}
+
 type DocPreset struct {
 	ID string `json:"id"`
 	model.PresetInput
@@ -82,6 +89,7 @@ func Export(snap store.Snapshot, now time.Time) Document {
 		Pages:         []DocPage{},
 		Services:      []DocService{},
 		Sources:       []DocSource{},
+		Devices:       []DocDevice{},
 		Presets:       []DocPreset{},
 	}
 	if snap.Settings.StartPageID != nil {
@@ -106,6 +114,9 @@ func Export(snap store.Snapshot, now time.Time) Document {
 	}
 	for _, s := range snap.Sources {
 		doc.Sources = append(doc.Sources, DocSource{ID: s.ID, SourceInput: s.SourceInput})
+	}
+	for _, d := range snap.Devices {
+		doc.Devices = append(doc.Devices, DocDevice{ID: d.ID, DeviceInput: d.DeviceInput})
 	}
 	for _, p := range snap.Presets {
 		doc.Presets = append(doc.Presets, DocPreset{ID: p.ID, PresetInput: p.PresetInput})
@@ -237,6 +248,26 @@ func buildHomeDeck(doc Document, env Env) (store.Snapshot, []Warning, error) {
 		}
 		sources[s.ID] = true
 		snap.Sources = append(snap.Sources, model.Source{ID: s.ID, SourceInput: in})
+	}
+
+	for i, d := range doc.Devices {
+		path := fmt.Sprintf("devices[%d]", i)
+		if !claim(path, d.ID, "dev") {
+			continue
+		}
+		in := d.DeviceInput
+		in.Normalize()
+		if in.SecretID != nil && !env.SecretIDs[*in.SecretID] {
+			// Секреты в экспорт не попадают: без ключа устройство сохраняется выключенным.
+			warns = append(warns, Warning{path + ".secret_id", "секрет не найден; устройство импортировано выключенным, задайте секрет заново"})
+			in.SecretID = nil
+			in.Enabled = new(false)
+		}
+		if err := in.Validate(); err != nil {
+			fail(path, err)
+			continue
+		}
+		snap.Devices = append(snap.Devices, model.Device{ID: d.ID, DeviceInput: in})
 	}
 
 	services := map[string]bool{}

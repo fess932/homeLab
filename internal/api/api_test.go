@@ -20,6 +20,7 @@ import (
 
 	"github.com/fess932/homeLab/internal/assets"
 	"github.com/fess932/homeLab/internal/config"
+	"github.com/fess932/homeLab/internal/devices"
 	"github.com/fess932/homeLab/internal/importer"
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/probe"
@@ -66,8 +67,21 @@ func newHarness(t *testing.T) *harness {
 		checks, _ := st.ListChecks(context.Background())
 		sched.Sync(checks)
 	}
+	devs := &devices.Manager{Log: log, Secret: func(ctx context.Context, id string) (secrets.Payload, error) {
+		rec, err := st.GetSecret(ctx, id)
+		if err != nil {
+			return secrets.Payload{}, err
+		}
+		return box.Open(rec.ID, rec.Payload)
+	}}
+	devs.Start()
+	t.Cleanup(devs.Stop)
+	syncDevices := func() {
+		list, _ := st.ListDevices(context.Background())
+		devs.Sync(list)
+	}
 	srv := New(Deps{
-		Config: cfg, Store: st, Box: box, Scheduler: sched, Supervisor: sup,
+		Config: cfg, Store: st, Box: box, Scheduler: sched, Devices: devs, Supervisor: sup,
 		Reconciler: &tsdb.Reconciler{Store: st, Box: box, Sup: sup, Log: log},
 		Watcher:    tsdb.NewWatcher(client, st, sup, log),
 		TSDB:       client, Assets: assetSvc,
@@ -83,7 +97,8 @@ func newHarness(t *testing.T) *harness {
 			defer mu.Unlock()
 			pending = false
 		},
-		OnChecks: syncChecks,
+		OnChecks:  syncChecks,
+		OnDevices: syncDevices,
 		Disk:     func() DiskUsage { return DiskUsage{Total: 100 << 30, Free: 50 << 30} },
 	})
 	hs := httptest.NewServer(srv)
@@ -511,7 +526,8 @@ func TestImportRoundTrip(t *testing.T) {
 		t.Fatalf("ревизия перед заменой: %+v", revs)
 	}
 
-	bad := bytes.Replace(export.body, []byte("schema_version: 1"), []byte("schema_version: 2"), 1)
+	cur := fmt.Sprintf("schema_version: %d", importer.SchemaVersion)
+	bad := bytes.Replace(export.body, []byte(cur), fmt.Appendf(nil, "schema_version: %d", importer.SchemaVersion+1), 1)
 	h.expect(h.preview("homedeck", bad, nil), 422, "validation")
 }
 
@@ -642,4 +658,66 @@ func TestCountSamples(t *testing.T) {
 	if DiskLevel(DiskUsage{Total: 100 << 30, Free: 15 << 30}) != "warning" || DiskLevel(DiskUsage{Total: 100 << 30, Free: 5 << 30}) != "critical" || DiskLevel(DiskUsage{Total: 4 << 30, Free: 900 << 20}) != "critical" {
 		t.Fatal("уровни диска")
 	}
+}
+
+func TestDevices(t *testing.T) {
+	h := newHarness(t)
+	h.setup()
+	secret := func(in model.SecretInput) model.Secret {
+		r := h.req("POST", "/api/v1/secrets", in, nil)
+		h.expect(r, 201, "")
+		var sec model.Secret
+		r.json(&sec)
+		return sec
+	}
+	key := secret(model.SecretInput{Name: "датчик", Kind: model.SecretKey, Key: "0123456789abcdef"})
+	basic := secret(model.SecretInput{Name: "nas", Kind: "basic", Username: "u", Password: "p"})
+	if key.Mask != "••••••" {
+		t.Fatalf("маска ключа: %q", key.Mask)
+	}
+
+	in := model.DeviceInput{
+		Name: "Датчик воздуха", Kind: model.DeviceTuya, Address: "192.168.0.235", SecretID: &basic.ID,
+		Labels: map[string]string{"room": "спальня"},
+		Tuya:   &model.TuyaConfig{DeviceID: "eb398c7f26966400abs3ju", Schema: []model.TuyaDP{{DP: "2", Code: "temp_current", Type: "Integer", Unit: "℃"}}},
+	}
+	// Логин с паролем не годится ключом шифрования Tuya.
+	h.expect(h.req("POST", "/api/v1/devices", in, nil), 422, "validation")
+	in.SecretID = &key.ID
+	r := h.req("POST", "/api/v1/devices", in, nil)
+	h.expect(r, 201, "")
+	var dev model.Device
+	r.json(&dev)
+	if dev.Tuya.Version != "auto" || dev.IntervalS != 30 || !*dev.Enabled || dev.Status.State != model.StatePending {
+		t.Fatalf("устройство после создания: %+v", dev)
+	}
+
+	// Ключ устройства нельзя отправить источнику в заголовке Authorization.
+	h.expect(h.req("POST", "/api/v1/sources", map[string]any{"name": "x", "kind": "prometheus", "url": "http://x:9100/metrics", "secret_id": key.ID}, nil), 422, "validation")
+
+	var secretsList []model.Secret
+	h.req("GET", "/api/v1/secrets", nil, nil).json(&secretsList)
+	for _, sc := range secretsList {
+		if sc.ID == key.ID && (len(sc.UsedBy) != 1 || sc.UsedBy[0] != dev.ID) {
+			t.Fatalf("секрет должен показывать устройство: %+v", sc)
+		}
+	}
+	h.expect(h.req("DELETE", "/api/v1/secrets/"+key.ID, nil, nil), 409, "in_use")
+
+	export := h.req("GET", "/api/v1/export", nil, nil)
+	h.expect(export, 200, "")
+	if !strings.Contains(string(export.body), "eb398c7f26966400abs3ju") || strings.Contains(string(export.body), "0123456789abcdef") {
+		t.Fatalf("экспорт должен содержать устройство без ключа:\n%s", export.body)
+	}
+
+	in.Name = "Спальня"
+	h.expect(h.req("PUT", "/api/v1/devices/"+dev.ID, in, map[string]string{"If-Match": `"0"`}), 409, "conflict")
+	r = h.req("PUT", "/api/v1/devices/"+dev.ID, in, map[string]string{"If-Match": fmt.Sprintf(`"%d"`, dev.Revision)})
+	h.expect(r, 200, "")
+	r.json(&dev)
+	if dev.Name != "Спальня" || dev.Revision != 2 {
+		t.Fatalf("после изменения: %+v", dev)
+	}
+	h.expect(h.req("DELETE", "/api/v1/devices/"+dev.ID, nil, nil), 204, "")
+	h.expect(h.req("DELETE", "/api/v1/secrets/"+key.ID, nil, nil), 204, "")
 }

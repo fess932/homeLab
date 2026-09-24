@@ -16,6 +16,7 @@ type Snapshot struct {
 	Services []model.Service
 	Checks   []model.Check
 	Sources  []model.Source
+	Devices  []model.Device
 	Presets  []model.Preset
 }
 
@@ -23,6 +24,7 @@ type ReplaceScope struct {
 	Pages    bool
 	Services bool
 	Sources  bool
+	Devices  bool
 	Presets  bool
 }
 
@@ -50,6 +52,9 @@ func (s *Store) Snapshot(ctx context.Context) (Snapshot, error) {
 		return snap, err
 	}
 	if snap.Sources, err = s.ListSources(ctx); err != nil {
+		return snap, err
+	}
+	if snap.Devices, err = s.ListDevices(ctx); err != nil {
 		return snap, err
 	}
 	snap.Presets, err = s.ListPresets(ctx)
@@ -96,6 +101,17 @@ func (s *Store) Replace(ctx context.Context, scope ReplaceScope, snap Snapshot, 
 			}
 			if err := bumpDesired(ctx, tx); err != nil {
 				return err
+			}
+		}
+		if scope.Devices {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM devices"); err != nil {
+				return err
+			}
+			for _, d := range snap.Devices {
+				if _, err := tx.ExecContext(ctx, "INSERT INTO devices ("+deviceCols+", created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+					d.ID, d.Name, d.Kind, d.Address, d.IntervalS, d.TimeoutS, mustJSON(d.Labels), nullStr(d.SecretID), deviceConfigJSON(d.DeviceInput), *d.Enabled, now); err != nil {
+					return err
+				}
 			}
 		}
 		if scope.Services {

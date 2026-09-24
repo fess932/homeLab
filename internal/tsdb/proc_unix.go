@@ -8,6 +8,9 @@ import (
 	"syscall"
 )
 
+// На Unix конфигурация сбора применяется по POST /-/reload (VictoriaMetrics шлёт себе SIGHUP).
+var platformArgs []string
+
 // TSDB запускается в своей группе процессов, чтобы при зависании убить её целиком.
 func setProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

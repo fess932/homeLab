@@ -343,6 +343,9 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) error {
 	if err := in.Validate(); err != nil {
 		return err
 	}
+	if err := s.checkSecretKind(r.Context(), in.SecretID, "basic", "bearer"); err != nil {
+		return err
+	}
 	src, err := s.Store.CreateSource(r.Context(), in)
 	if err != nil {
 		return err
@@ -369,6 +372,9 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) error {
 	}
 	in.Normalize()
 	if err := in.Validate(); err != nil {
+		return err
+	}
+	if err := s.checkSecretKind(r.Context(), in.SecretID, "basic", "bearer"); err != nil {
 		return err
 	}
 	src, err := s.Store.UpdateSource(r.Context(), id, rev, in)
@@ -406,8 +412,11 @@ func (s *Server) listSecrets(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) sealSecret(id string, in model.SecretInput) ([]byte, error) {
 	p := secrets.Payload{Username: in.Username, Password: in.Password}
-	if in.Kind == "bearer" {
+	switch in.Kind {
+	case "bearer":
 		p = secrets.Payload{Token: in.Token}
+	case model.SecretKey:
+		p = secrets.Payload{Key: in.Key}
 	}
 	return s.Box.Seal(id, p)
 }
@@ -468,7 +477,7 @@ func (s *Server) updateSecret(w http.ResponseWriter, r *http.Request) error {
 func (s *Server) deleteSecret(w http.ResponseWriter, r *http.Request) error {
 	err := s.Store.DeleteSecret(r.Context(), r.PathValue("id"))
 	if errors.Is(err, model.ErrInUse) {
-		return &Error{Status: http.StatusConflict, Code: "in_use", Message: "секрет используется источниками, сначала отвяжите его"}
+		return &Error{Status: http.StatusConflict, Code: "in_use", Message: "секрет используется источниками или устройствами, сначала отвяжите его"}
 	}
 	if err != nil {
 		return err

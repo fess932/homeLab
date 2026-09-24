@@ -67,6 +67,16 @@ function setVar(name: string, value: string) {
           <option value="" disabled>—</option>
           <option v-for="s in store.services" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
+        <select
+          v-else-if="v === 'device_id'"
+          class="input"
+          :value="model.vars[v] ?? ''"
+          required
+          @change="setVar(v, ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="" disabled>—</option>
+          <option v-for="d in store.devices" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
         <input v-else class="input" :value="model.vars[v] ?? ''" @input="setVar(v, ($event.target as HTMLInputElement).value)" />
       </label>
     </fieldset>

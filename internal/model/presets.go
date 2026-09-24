@@ -43,6 +43,21 @@ var builtinPresets = []Preset{
 	builtin("tpl_tsdb_series", "tsdb", "TSDB: активные ряды", `max_over_time(vm_cache_entries{source_id="tsdb",type="storage/hour_metric_ids"})`, "count", ""),
 	builtin("tpl_tsdb_disk", "tsdb", "TSDB: объём данных", `sum(vm_data_size_bytes{source_id="tsdb"})`, "bytes", ""),
 	builtin("tpl_tsdb_free", "tsdb", "TSDB: свободно на диске", `min(vm_free_disk_space_bytes{source_id="tsdb"})`, "bytes", ""),
+
+	// Устройства: общие ключи величин одинаковы для любых драйверов (см. internal/devices).
+	builtin("tpl_device_up", "device", "Устройство: на связи", `homedeck_device_up{device_id="$device_id"}`, "bool", ""),
+	builtin("tpl_device_temperature", "device", "Устройство: температура", deviceValue("temperature"), "celsius", ""),
+	builtin("tpl_device_humidity", "device", "Устройство: влажность", deviceValue("humidity"), "percent", ""),
+	builtin("tpl_device_co2", "device", "Устройство: CO₂", deviceValue("co2"), "ppm", "", Threshold{1000, "warn"}, Threshold{1500, "crit"}),
+	builtin("tpl_device_pm25", "device", "Устройство: PM2.5", deviceValue("pm25"), "ugm3", "", Threshold{35, "warn"}, Threshold{75, "crit"}),
+	builtin("tpl_device_pm10", "device", "Устройство: PM10", deviceValue("pm10"), "ugm3", "", Threshold{50, "warn"}, Threshold{100, "crit"}),
+	builtin("tpl_device_formaldehyde", "device", "Устройство: формальдегид", deviceValue("formaldehyde"), "mgm3", "", Threshold{0.08, "warn"}, Threshold{0.1, "crit"}),
+	builtin("tpl_device_battery", "device", "Устройство: заряд батареи", deviceValue("battery"), "percent", ""),
+	builtin("tpl_device_values", "device", "Устройство: все значения", `homedeck_device_value{device_id="$device_id"}`, "", "{{key}}"),
+}
+
+func deviceValue(key string) string {
+	return `homedeck_device_value{device_id="$device_id",key="` + key + `"}`
 }
 
 func builtin(id, category, title, expr, unit, legend string, th ...Threshold) Preset {

@@ -22,6 +22,7 @@ import (
 	"github.com/fess932/homeLab/internal/assets"
 	"github.com/fess932/homeLab/internal/auth"
 	"github.com/fess932/homeLab/internal/config"
+	"github.com/fess932/homeLab/internal/devices"
 	"github.com/fess932/homeLab/internal/importer"
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/probe"
@@ -41,6 +42,7 @@ type Deps struct {
 	Store      *store.Store
 	Box        *secrets.Box
 	Scheduler  *probe.Scheduler
+	Devices    *devices.Manager
 	Supervisor *tsdb.Supervisor
 	Reconciler *tsdb.Reconciler
 	Watcher    *tsdb.Watcher
@@ -52,6 +54,7 @@ type Deps struct {
 	SetupToken func() (string, bool)
 	SetupDone  func()
 	OnChecks   func()
+	OnDevices  func()
 	Disk       func() DiskUsage
 }
 
@@ -127,6 +130,13 @@ func (s *Server) routes() {
 	m.Handle("PUT /api/v1/sources/{id}", s.authed(s.updateSource))
 	m.Handle("DELETE /api/v1/sources/{id}", s.authed(s.deleteSource))
 	m.Handle("POST /api/v1/sources/{id}/test", s.authed(s.testSource))
+
+	m.Handle("GET /api/v1/devices", s.authed(s.listDevices))
+	m.Handle("POST /api/v1/devices", s.authed(s.createDevice))
+	m.Handle("POST /api/v1/devices/test", s.authed(s.testDevice))
+	m.Handle("GET /api/v1/devices/{id}", s.authed(s.getDevice))
+	m.Handle("PUT /api/v1/devices/{id}", s.authed(s.updateDevice))
+	m.Handle("DELETE /api/v1/devices/{id}", s.authed(s.deleteDevice))
 
 	m.Handle("GET /api/v1/secrets", s.authed(s.listSecrets))
 	m.Handle("POST /api/v1/secrets", s.authed(s.createSecret))

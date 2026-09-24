@@ -90,7 +90,7 @@ beforeEach(() => {
       if (url === '/api/v1/services') return respond([service])
       if (url === '/api/v1/checks')
         return respond([{ id: 'chk_1', service_id: 'svc_nas', kind: 'http', target: 'http://nas.lan:5000/health', expected_status: '200-399', interval_s: 30, timeout_s: 5, enabled: true, ca_pem: '', revision: 1 }])
-      if (url === '/api/v1/presets' || url === '/api/v1/sources') return respond([])
+      if (url === '/api/v1/presets' || url === '/api/v1/sources' || url === '/api/v1/devices') return respond([])
       return respond({ code: 'not_found', message: 'nf', request_id: 'x' }, 404)
     }),
   )

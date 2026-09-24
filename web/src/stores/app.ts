@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue'
-import { api, type Check, type PageSummary, type QueryPreset, type Service, type Session, type Settings, type Source } from '@/api'
+import { api, type Check, type Device, type PageSummary, type QueryPreset, type Service, type Session, type Settings, type Source } from '@/api'
 
 interface State {
   session: Session | null
@@ -9,7 +9,8 @@ interface State {
   presets: QueryPreset[]
   sources: Source[]
   checks: Check[]
-  loaded: { services: boolean; presets: boolean; sources: boolean; pages: boolean; checks: boolean }
+  devices: Device[]
+  loaded: { services: boolean; presets: boolean; sources: boolean; pages: boolean; checks: boolean; devices: boolean }
 }
 
 export const store = reactive<State>({
@@ -20,7 +21,8 @@ export const store = reactive<State>({
   presets: [],
   sources: [],
   checks: [],
-  loaded: { services: false, presets: false, sources: false, pages: false, checks: false },
+  devices: [],
+  loaded: { services: false, presets: false, sources: false, pages: false, checks: false, devices: false },
 })
 
 export const servicesById = computed(() => new Map(store.services.map((s) => [s.id, s])))
@@ -72,12 +74,19 @@ export async function loadChecks() {
   return store.checks
 }
 
+export async function loadDevices() {
+  store.devices = await api.devices.list()
+  store.loaded.devices = true
+  return store.devices
+}
+
 export async function ensureCatalog() {
   const tasks: Promise<unknown>[] = []
   if (!store.loaded.services) tasks.push(loadServices())
   if (!store.loaded.presets) tasks.push(loadPresets())
   if (!store.loaded.sources) tasks.push(loadSources())
   if (!store.loaded.checks) tasks.push(loadChecks())
+  if (!store.loaded.devices) tasks.push(loadDevices())
   await Promise.all(tasks)
 }
 
@@ -89,5 +98,6 @@ export function resetStore() {
   store.presets = []
   store.sources = []
   store.checks = []
-  store.loaded = { services: false, presets: false, sources: false, pages: false, checks: false }
+  store.devices = []
+  store.loaded = { services: false, presets: false, sources: false, pages: false, checks: false, devices: false }
 }

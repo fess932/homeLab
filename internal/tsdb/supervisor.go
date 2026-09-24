@@ -41,7 +41,7 @@ type Options struct {
 }
 
 func (o Options) Args() []string {
-	return []string{
+	return append([]string{
 		"-storageDataPath=" + o.DataDir,
 		"-httpListenAddr=" + o.Listen,
 		"-retentionPeriod=" + o.Retention,
@@ -64,7 +64,7 @@ func (o Options) Args() []string {
 		"-http.shutdownDelay=0s",
 		"-loggerFormat=json",
 		"-loggerLevel=WARN",
-	}
+	}, platformArgs...)
 }
 
 type Status struct {

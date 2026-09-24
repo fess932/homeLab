@@ -20,6 +20,7 @@ import (
 	"github.com/fess932/homeLab/internal/assets"
 	"github.com/fess932/homeLab/internal/auth"
 	"github.com/fess932/homeLab/internal/config"
+	"github.com/fess932/homeLab/internal/devices"
 	"github.com/fess932/homeLab/internal/importer"
 	"github.com/fess932/homeLab/internal/netguard"
 	"github.com/fess932/homeLab/internal/probe"
@@ -83,6 +84,28 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 	}
 	syncChecks()
 
+	devs := &devices.Manager{
+		UserAgent: "HomeDeck/" + cfg.Version,
+		Log:       root.With("component", "devices"),
+		Secret: func(ctx context.Context, id string) (secrets.Payload, error) {
+			rec, err := st.GetSecret(ctx, id)
+			if err != nil {
+				return secrets.Payload{}, err
+			}
+			return box.Open(rec.ID, rec.Payload)
+		},
+	}
+	devs.Start()
+	syncDevices := func() {
+		list, err := st.ListDevices(context.Background())
+		if err != nil {
+			log.Error("load devices", "err", err)
+			return
+		}
+		devs.Sync(list)
+	}
+	syncDevices()
+
 	sup := tsdb.NewSupervisor(tsdb.Options{
 		Binary:          cfg.VMBinary,
 		DataDir:         cfg.MetricsDir(),
@@ -108,13 +131,14 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 	disk := newDiskMeter(cfg)
 	imp := &importer.Service{Store: st, Assets: assetSvc, RevisionsDir: cfg.RevisionsDir(), OnApplied: func() {
 		syncChecks()
+		syncDevices()
 		rec.Kick()
 	}}
 
 	apiSrv := api.New(api.Deps{
-		Config: cfg, Store: st, Box: box, Scheduler: scheduler, Supervisor: sup, Reconciler: rec, Watcher: watcher,
+		Config: cfg, Store: st, Box: box, Scheduler: scheduler, Devices: devs, Supervisor: sup, Reconciler: rec, Watcher: watcher,
 		TSDB: client, Assets: assetSvc, Importer: imp, UI: ui, Log: root.With("component", "api"),
-		SetupToken: setup.token, SetupDone: setup.done, OnChecks: syncChecks, Disk: disk.usage,
+		SetupToken: setup.token, SetupDone: setup.done, OnChecks: syncChecks, OnDevices: syncDevices, Disk: disk.usage,
 	})
 
 	internalMux := http.NewServeMux()
@@ -125,6 +149,7 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 		fmt.Fprintf(w, "homedeck_disk_total_bytes %d\nhomedeck_disk_free_bytes %d\nhomedeck_disk_metrics_bytes %d\nhomedeck_disk_app_bytes %d\n", d.Total, d.Free, d.Metrics, d.App)
 		fmt.Fprintf(w, "homedeck_tsdb_restarts_total %d\n", sup.Status().Restarts)
 		scheduler.WriteMetrics(w)
+		devs.WritePrometheus(w)
 	})
 	metrics.NewGauge(`homedeck_build_info{version="`+cfg.Version+`"}`, func() float64 { return 1 })
 
@@ -185,6 +210,7 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 	deadline, cancelDeadline := context.WithTimeout(context.Background(), shutdownBudget)
 	defer cancelDeadline()
 	scheduler.Stop()
+	devs.Stop()
 	httpCtx, cancelHTTP := context.WithTimeout(deadline, 10*time.Second)
 	var wg sync.WaitGroup
 	for _, srv := range servers {

@@ -87,7 +87,7 @@ func (s *Service) Preview(ctx context.Context, format string, data, zipData []by
 		}
 		warns = w
 		p.snap = snap
-		p.scope = store.ReplaceScope{Pages: true, Services: true, Sources: true, Presets: true}
+		p.scope = store.ReplaceScope{Pages: true, Services: true, Sources: true, Devices: true, Presets: true}
 	case "homer":
 		plan, w, err := parseHomer(data, zipData, cur)
 		if err != nil {
@@ -133,6 +133,9 @@ func changes(cur, next store.Snapshot, scope store.ReplaceScope) []Change {
 	}
 	if scope.Sources {
 		out = append(out, diff("source", cur.Sources, next.Sources, func(s model.Source) string { return s.ID }, func(s model.Source) string { return s.Name })...)
+	}
+	if scope.Devices {
+		out = append(out, diff("device", cur.Devices, next.Devices, func(d model.Device) string { return d.ID }, func(d model.Device) string { return d.Name })...)
 	}
 	if scope.Presets {
 		out = append(out, diff("preset", cur.Presets, next.Presets, func(p model.Preset) string { return p.ID }, func(p model.Preset) string { return p.Title })...)

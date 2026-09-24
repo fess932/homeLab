@@ -49,15 +49,24 @@ tini (PID 1)
 - Старт: права на `/data` → flock `/data/.lock` → проверка целостности и миграции SQLite → ключ секретов → runtime-каталог → scrape-конфиг из SQLite → внутренние endpoint → TSDB → API. Пока TSDB прогревается, ссылки и настройки работают, мониторинг отвечает 503 `tsdb_unavailable`.
 - Падение TSDB: перезапуск через 1, 2, 4, 8 секунд; пятая неудача подряд завершает контейнер с кодом 1, дальше перезапускает Docker. Минута стабильной работы сбрасывает счётчик.
 - SIGTERM: остановка проверок, завершение HTTP-запросов (до 10 с), корректная остановка TSDB (до 45 с), закрытие SQLite. Бюджет — 60 с (`stop_grace_period`).
-- Логи — JSON в stdout, поле `component`: `app`, `api`, `tsdb`, `scheduler`, `reconciler`, `watcher`, `egress`.
+- Логи — JSON в stdout, поле `component`: `app`, `api`, `tsdb`, `scheduler`, `devices`, `reconciler`, `watcher`, `egress`. В интерактивном терминале вместо JSON — цветной текст и заставка со ссылками на UI; `NO_COLOR` отключает цвет.
 
 ## Сбор метрик
 
 - Scrape внешних источников выполняет VictoriaMetrics по конфигу, который Go генерирует из SQLite в `/tmp/homedeck/scrape.yaml`. Credentials и CA лежат рядом в `/tmp/homedeck/secrets/<source_id>/` с правами 0600 и подключаются через `*_file`, в YAML их значений нет.
-- Применение: `desired_revision` растёт при изменении источников и секретов → dry-run `victoria-metrics -promscrape.config.dryRun -promscrape.config.strictParse` → атомарная замена файлов → `POST /-/reload` → проверка `vm_promscrape_config_reloads_errors_total` и `vm_promscrape_config_last_reload_success_timestamp_seconds` → `applied_revision`. При ошибке остаётся прежний рабочий конфиг, ошибка видна в UI и `/api/v1/status`, reconciler повторяет попытку каждые 30 с. Последние 20 применённых конфигов сохраняются в `/data/config-revisions/scrape-*.yaml`.
+- Применение: `desired_revision` растёт при изменении источников и секретов → dry-run `victoria-metrics -promscrape.config.dryRun -promscrape.config.strictParse` → атомарная замена файлов → `POST /-/reload` (в Windows нет SIGHUP, поэтому VictoriaMetrics запускается с `-promscrape.configCheckInterval=2s` и сама перечитывает изменившийся файл) → проверка `vm_promscrape_config_reloads_errors_total` и `vm_promscrape_config_last_reload_success_timestamp_seconds` → `applied_revision`. При ошибке остаётся прежний рабочий конфиг, ошибка видна в UI и `/api/v1/status`, reconciler повторяет попытку каждые 30 с. Последние 20 применённых конфигов сохраняются в `/data/config-revisions/scrape-*.yaml`.
 - Все пользовательские scrape идут через внутренний egress-proxy (`proxy_url`). Он и HTTP/TCP-проверки Go открывают соединения через одну политику: запрещены loopback, `0.0.0.0/8`, link-local (включая `169.254.169.254`), multicast, `100.100.100.200`, `fd00:ec2::254`, IPv4-mapped и NAT64-формы этих адресов. Проверяется фактический IP соединения после DNS, поэтому DNS rebinding не обходит запрет. Redirects выключены.
 - Лимиты: `sample_limit: 5000` и `series_limit: 20000` на источник, ответ scrape до 16 MiB. Превышение отклоняет scrape источника с понятной ошибкой в карточке источника.
 - Метки: `source_id` назначается принудительно (`honor_labels: false`, пользовательские labels не могут содержать `source_id`, `job`, `instance`, `service_id`). Результаты проверок: `homedeck_probe_*{service_id, kind}`.
+
+### Устройства
+
+- Устройства со своим API опрашивает сам HomeDeck (компонент `devices`), по циклу на устройство с интервалом и таймаутом из его настроек. Значения публикуются на внутреннем `127.0.0.1:9091/metrics` и попадают в VictoriaMetrics с системным источником `homedeck`.
+- Ряды: `homedeck_device_up`, `homedeck_device_poll_duration_seconds`, `homedeck_device_value{key, unit}` и `homedeck_device_state{key, value}` для перечислений; у всех есть `device_id`, `device` и метки устройства. Пока устройство не отвечает, публикуется только `homedeck_device_up 0`.
+- Tuya: локальный протокол 3.3/3.4/3.5 на TCP 6668, `version: auto` перебирает 3.5 → 3.4 → 3.3 и запоминает сработавшую до первой ошибки. `local_key` хранится секретом типа «ключ устройства»; такой секрет нельзя привязать к источнику или HTTP-устройству, чтобы он не ушёл в заголовок `Authorization`.
+- HTTP JSON: GET по URL, значения по путям через точку (`meters.0.power`), ответ до 1 MiB, множитель для перевода единиц.
+- Опрос идёт через ту же политику исходящих соединений, что проверки: устройство в loopback или link-local недоступно.
+- Экспорт содержит устройства без ключей; при импорте устройство без найденного секрета сохраняется выключенным.
 
 ### Узлы и контейнеры
 
@@ -75,7 +84,7 @@ tini (PID 1)
 
 ```
 /data/
-  app.db, app.db-wal     настройки, пользователи, сессии, зашифрованные credentials
+  app.db, app.db-wal     настройки, источники, устройства, пользователи, сессии, зашифрованные credentials
   app.db.pre-migration-N копия перед миграцией схемы N → N+1
   secrets.key            ключ шифрования (если не задан HOMEDECK_SECRET_KEY_FILE)
   setup-token            только до создания администратора
