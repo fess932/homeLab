@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { Group, MetricRef, RangeName, Widget, WidgetConfigMap } from '@/api'
+import { api, ApiError, type Group, type MetricRef, type RangeName, type Widget, type WidgetConfigMap } from '@/api'
+import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
 import ModalDialog from '@/components/ui/ModalDialog.vue'
 import MetricPicker from '@/components/MetricPicker.vue'
 import { t } from '@/i18n'
 import { MARKDOWN_LIMIT } from '@/lib/markdown'
 import { rangeNames } from '@/lib/time'
-import { store } from '@/stores/app'
+import { isHttpUrl, type Errors } from '@/lib/validate'
+import { loadChecks, loadServices, store } from '@/stores/app'
 
 const props = defineProps<{ widget: Widget; groups: Group[] }>()
 const emit = defineEmits<{ save: [w: Widget]; close: [] }>()
@@ -49,7 +51,69 @@ function moveService(idx: number, delta: number) {
 
 const serviceName = (id: string) => store.services.find((s) => s.id === id)?.name ?? id
 
-function submit() {
+// «Своя ссылка»: с проверкой — создаются сервис и HTTP-проверка раз в 5 минут,
+// без проверки — адрес и название хранятся в самом виджете.
+const initialLink = props.widget.type === 'link' ? (props.widget.config as WidgetConfigMap['link']) : null
+const custom = ref({ name: initialLink?.title ?? '', url: initialLink?.url ?? '', ping: !initialLink?.url })
+const errors = ref<Errors>({})
+const error = ref<unknown>(null)
+const busy = ref(false)
+const isCustomLink = computed(() => draft.value.type === 'link' && !typed<'link'>().service_id)
+
+function withScheme(s: string): string {
+  const v = s.trim()
+  return v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? `http://${v}` : v
+}
+
+async function createCustomLink(): Promise<boolean> {
+  const url = withScheme(custom.value.url)
+  custom.value.url = url
+  if (!isHttpUrl(url)) {
+    errors.value = { url: t('validation.url') }
+    return false
+  }
+  errors.value = {}
+  const c = typed<'link'>()
+  if (!custom.value.ping) {
+    c.url = url
+    c.title = custom.value.name.trim()
+    return true
+  }
+  const svc = await api.services.create({
+    name: custom.value.name.trim() || new URL(url).host,
+    description: '',
+    url,
+    icon: 'favicon',
+    tags: [],
+    open_mode: 'new_tab',
+    source_id: null,
+  })
+  await api.checks.create({ service_id: svc.id, kind: 'http', target: url, expected_status: '200-399', interval_s: 300, timeout_s: 10, enabled: true, ca_pem: '' })
+  c.service_id = svc.id
+  c.show_status = true
+  delete c.url
+  delete c.title
+  await Promise.all([loadServices(), loadChecks()])
+  return true
+}
+
+async function submit() {
+  if (isCustomLink.value) {
+    busy.value = true
+    error.value = null
+    try {
+      if (!(await createCustomLink())) return
+    } catch (e) {
+      error.value = e
+      if (e instanceof ApiError) errors.value = { ...errors.value, ...e.fieldErrors() }
+      return
+    } finally {
+      busy.value = false
+    }
+  } else if (draft.value.type === 'link') {
+    delete typed<'link'>().url
+    delete typed<'link'>().title
+  }
   emit('save', draft.value)
 }
 </script>
@@ -57,6 +121,7 @@ function submit() {
 <template>
   <ModalDialog :title="`${t('editor.widgetSettings')}: ${t(`widgets.types.${draft.type}`)}`" @close="emit('close')">
     <form id="widget-form" @submit.prevent="submit">
+      <ApiErrorAlert :error="error" />
       <label class="field">
         <span>{{ t('editor.groupTitle') }}</span>
         <select v-model="draft.group_id" class="input">
@@ -64,7 +129,7 @@ function submit() {
         </select>
       </label>
 
-      <template v-if="draft.type === 'link' || draft.type === 'status'">
+      <template v-if="draft.type === 'status'">
         <label class="field">
           <span>{{ t('widgets.service') }}</span>
           <select v-model="cfg.service_id" class="input" required>
@@ -75,7 +140,26 @@ function submit() {
       </template>
 
       <template v-if="draft.type === 'link'">
-        <label class="field check"><input v-model="cfg.show_status" type="checkbox" /> {{ t('widgets.showStatus') }}</label>
+        <label class="field">
+          <span>{{ t('widgets.service') }}</span>
+          <select v-model="cfg.service_id" class="input">
+            <option value="">{{ t('widgets.customLink') }}</option>
+            <option v-for="s in store.services" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+        </label>
+        <template v-if="isCustomLink">
+          <label class="field">
+            <span>{{ t('widgets.linkUrl') }}</span>
+            <input v-model="custom.url" class="input" inputmode="url" required placeholder="http://nas.lan:5000" :aria-invalid="!!errors.url" />
+            <span v-if="errors.url" class="error">{{ errors.url }}</span>
+          </label>
+          <label class="field">
+            <span>{{ t('widgets.linkName') }}</span>
+            <input v-model="custom.name" class="input" maxlength="100" :placeholder="t('widgets.linkNameHint')" />
+          </label>
+          <label class="field check"><input v-model="custom.ping" type="checkbox" /> {{ t('widgets.ping') }}</label>
+        </template>
+        <label v-else class="field check"><input v-model="cfg.show_status" type="checkbox" /> {{ t('widgets.showStatus') }}</label>
         <label class="field check"><input v-model="cfg.show_latency" type="checkbox" /> {{ t('widgets.showLatency') }}</label>
         <MetricPicker v-model="linkMetric" optional />
       </template>
@@ -151,7 +235,7 @@ function submit() {
     </form>
     <template #footer>
       <button type="button" class="btn" @click="emit('close')">{{ t('app.cancel') }}</button>
-      <button type="submit" form="widget-form" class="btn primary">{{ t('app.save') }}</button>
+      <button type="submit" form="widget-form" class="btn primary" :disabled="busy">{{ t('app.save') }}</button>
     </template>
   </ModalDialog>
 </template>

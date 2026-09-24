@@ -44,9 +44,10 @@ const error = ref<unknown>(null)
 const busy = ref(false)
 
 const iconKind = computed({
-  get: () => (form.value.icon.startsWith('asset:') ? 'asset' : form.value.icon.startsWith('builtin:') ? 'builtin' : 'none'),
+  get: () =>
+    form.value.icon === 'favicon' ? 'favicon' : form.value.icon.startsWith('asset:') ? 'asset' : form.value.icon.startsWith('builtin:') ? 'builtin' : 'none',
   set: (k: string) => {
-    form.value.icon = k === 'builtin' ? 'builtin:server' : k === 'asset' ? `asset:${assets.value[0]?.id ?? ''}` : ''
+    form.value.icon = k === 'builtin' ? 'builtin:server' : k === 'asset' ? `asset:${assets.value[0]?.id ?? ''}` : k === 'favicon' ? 'favicon' : ''
   },
 })
 
@@ -147,11 +148,12 @@ async function submit() {
       <fieldset class="box">
         <legend class="small">{{ t('settings.icon') }}</legend>
         <div class="row icon-row">
-          <ServiceIcon :icon="form.icon" :size="32" />
+          <ServiceIcon :icon="form.icon" :url="form.url" :size="32" />
           <label class="field">
             <span class="sr-only">{{ t('settings.icon') }}</span>
             <select v-model="iconKind" class="input">
               <option value="none">{{ t('settings.iconNone') }}</option>
+              <option value="favicon">{{ t('settings.iconFavicon') }}</option>
               <option value="builtin">{{ t('settings.iconBuiltin') }}</option>
               <option value="asset" :disabled="!assets.length">{{ t('settings.iconAsset') }}</option>
             </select>

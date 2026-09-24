@@ -25,7 +25,7 @@ var (
 	PresetVars  = []string{"source_id", "service_id", "device_id", "instance"}
 	labelRe     = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 	reserved    = []string{"source_id", "job", "instance", "service_id"}
-	iconRe      = regexp.MustCompile(`^(builtin:[a-z0-9-]{1,40}|asset:ast_[a-z0-9]{14})?$`)
+	iconRe      = regexp.MustCompile(`^(builtin:[a-z0-9-]{1,40}|asset:ast_[a-z0-9]{14}|favicon)?$`)
 	presetVarRe = regexp.MustCompile(`\$(source_id|service_id|device_id|instance)\b`)
 )
 
@@ -75,7 +75,7 @@ func (s *ServiceInput) Validate() error {
 	v.check(utf8.RuneCountInString(s.Description) <= 500, "description", "до 500 символов")
 	u, err := url.Parse(s.URL)
 	v.check(err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "", "url", "адрес http:// или https://")
-	v.check(iconRe.MatchString(s.Icon), "icon", "builtin:<имя> или asset:<id>")
+	v.check(iconRe.MatchString(s.Icon), "icon", "builtin:<имя>, asset:<id> или favicon")
 	v.check(oneOf(s.OpenMode, "same_tab", "new_tab"), "open_mode", "same_tab или new_tab")
 	v.check(len(s.Tags) <= 20, "tags", "не более 20 тегов")
 	for i, t := range s.Tags {

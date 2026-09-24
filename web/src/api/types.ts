@@ -61,6 +61,9 @@ export interface MetricRef {
 
 export interface LinkConfig {
   service_id: string
+  /** Простая ссылка без сервиса и проверки: используется, когда service_id пуст. */
+  url?: string
+  title?: string
   show_status: boolean
   show_latency: boolean
   metric: MetricRef | null

@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -100,8 +101,11 @@ type MetricRef struct {
 	Vars     map[string]string `json:"vars"`
 }
 
+// LinkConfig — ссылка на сервис (с проверкой и статусом) или простая ссылка URL/Title без проверки.
 type LinkConfig struct {
 	ServiceID   string     `json:"service_id"`
+	URL         string     `json:"url,omitempty"`
+	Title       string     `json:"title,omitempty"`
 	ShowStatus  bool       `json:"show_status"`
 	ShowLatency bool       `json:"show_latency"`
 	Metric      *MetricRef `json:"metric"`
@@ -284,7 +288,12 @@ func validateWidgetConfig(v *validator, f string, w Widget) {
 		if bad(json.Unmarshal(w.Config, &c)) {
 			return
 		}
-		v.check(c.ServiceID != "", f+".service_id", "выберите сервис")
+		if c.ServiceID == "" {
+			u, err := url.Parse(c.URL)
+			v.check(c.URL != "" && err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && len(c.URL) <= 2048,
+				f+".url", "выберите сервис или укажите адрес http:// или https://")
+		}
+		v.check(utf8.RuneCountInString(c.Title) <= 100, f+".title", "до 100 символов")
 		if c.Metric != nil {
 			validateMetricRef(v, f+".metric", *c.Metric)
 		}

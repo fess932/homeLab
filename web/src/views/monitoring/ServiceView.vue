@@ -43,7 +43,7 @@ usePolling(async () => {
     <ApiErrorAlert :error="error" />
     <template v-if="service">
       <header class="head">
-        <ServiceIcon :icon="service.icon" :size="32" />
+        <ServiceIcon :icon="service.icon" :url="service.url" :size="32" />
         <h1>{{ service.name }}</h1>
         <StatusBadge v-if="service.check_id" :status="service.status" />
         <a :href="service.url" target="_blank" rel="noopener noreferrer" class="btn small">{{ t('monitoring.open') }}</a>

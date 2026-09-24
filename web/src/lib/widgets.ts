@@ -14,7 +14,7 @@ export const minSize: Record<WidgetType, Size> = {
 }
 
 export const defaultSize: Record<WidgetType, Size> = {
-  link: { w: 3, h: 1 },
+  link: { w: 2, h: 1 },
   links: { w: 3, h: 3 },
   clock: { w: 3, h: 1 },
   note: { w: 4, h: 2 },

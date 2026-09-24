@@ -3,9 +3,9 @@ import { computed, toRef } from 'vue'
 import type { Widget } from '@/api'
 import ChartView from '@/components/ChartView.vue'
 import ServiceIcon from '@/components/ui/ServiceIcon.vue'
+import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { t } from '@/i18n'
 import { formatValue, isValue } from '@/lib/format'
-import { probeTone, statusText } from '@/lib/status'
 import { useWidgetContext, useWidgetData } from './context'
 
 const props = defineProps<{ widget: Widget<'link'> }>()
@@ -19,10 +19,18 @@ const { data } = useWidgetData(toRef(props, 'widget'), computed(() => ({ range: 
 const basis = computed(() =>
   check.value ? t('status.basis', { kind: check.value.kind.toUpperCase(), target: check.value.target }) : '',
 )
+// Простая ссылка без сервиса: адрес и название из самого виджета, без статуса.
+const plainHost = computed(() => {
+  try {
+    return new URL(cfg.value.url ?? '').host
+  } catch {
+    return cfg.value.url ?? ''
+  }
+})
+const plainTitle = computed(() => cfg.value.title || plainHost.value)
 const newTab = computed(() => service.value?.open_mode === 'new_tab')
 const latency = computed(() => service.value?.status?.duration_ms)
 const showStatus = computed(() => cfg.value.show_status && !!service.value?.check_id)
-const tone = computed(() => (showStatus.value ? probeTone[service.value?.status?.state ?? 'unknown'] : ''))
 
 function guard(e: MouseEvent) {
   if (ctx.mode === 'edit') e.preventDefault()
@@ -30,23 +38,37 @@ function guard(e: MouseEvent) {
 </script>
 
 <template>
-  <div v-if="!service" class="card w-link missing muted">
+  <a
+    v-if="!cfg.service_id && cfg.url"
+    class="card w-link"
+    :href="cfg.url"
+    target="_blank"
+    rel="noopener noreferrer"
+    :draggable="false"
+    @click="guard"
+  >
+    <ServiceIcon icon="favicon" :url="cfg.url" :size="28" />
+    <div class="body">
+      <div class="head">
+        <span class="name">{{ plainTitle }}</span>
+        <span class="sr-only">({{ t('widgets.openNewTab') }})</span>
+      </div>
+      <p v-if="cfg.title" class="desc muted small">{{ plainHost }}</p>
+    </div>
+  </a>
+  <div v-else-if="!service" class="card w-link missing muted">
     {{ cfg.service_id ? t('widgets.missingService') : t('widgets.noService') }}
   </div>
   <a
     v-else
     class="card w-link"
-    :class="tone"
     :href="service.url"
     :target="newTab ? '_blank' : undefined"
     :rel="newTab ? 'noopener noreferrer' : undefined"
     :draggable="false"
     @click="guard"
   >
-    <span v-if="showStatus" class="led" :title="basis || statusText(service.status)">
-      <span class="sr-only">{{ statusText(service.status) }}</span>
-    </span>
-    <ServiceIcon :icon="service.icon" :size="28" />
+    <ServiceIcon :icon="service.icon" :url="service.url" :size="28" />
     <div class="body">
       <div class="head">
         <span class="name">{{ service.name }}</span>
@@ -54,6 +76,7 @@ function guard(e: MouseEvent) {
         <span v-if="cfg.show_latency && service.check_id" class="latency" :title="t('widgets.latency')">
           {{ isValue(latency) ? formatValue(latency, 'milliseconds') : t('units.noData') }}
         </span>
+        <StatusBadge v-if="showStatus" class="led" :status="service.status" :hint="basis || undefined" compact />
       </div>
       <div v-if="service.description || service.tags.length" class="sub">
         <p class="desc muted small">{{ service.description }}</p>
@@ -70,9 +93,8 @@ function guard(e: MouseEvent) {
 .w-link {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
   height: 100%;
-  padding-left: calc(var(--pad) + 4px);
   color: var(--text);
   text-decoration: none;
   overflow: hidden;
@@ -87,31 +109,6 @@ a.w-link:hover {
   justify-content: center;
 }
 
-/* Индикатор состояния: полоса по левому краю модуля. */
-.led {
-  position: absolute;
-  left: 1px;
-  top: var(--cut);
-  bottom: 1px;
-  width: 3px;
-  background: var(--muted);
-}
-
-.ok .led {
-  background: var(--ok);
-  box-shadow: 0 0 var(--glow) var(--ok);
-}
-
-.bad .led {
-  background: var(--bad);
-  box-shadow: 0 0 var(--glow) var(--bad);
-}
-
-.warn .led {
-  background: var(--warn);
-  box-shadow: 0 0 var(--glow) var(--warn);
-}
-
 .body {
   flex: 1;
   min-width: 0;
@@ -122,7 +119,7 @@ a.w-link:hover {
 
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
 }
 
@@ -141,10 +138,6 @@ a.w-link:hover {
   font-stretch: 85%;
   font-size: 0.8rem;
   color: var(--text-muted);
-}
-
-.bad .latency {
-  color: var(--bad);
 }
 
 .sub {

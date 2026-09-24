@@ -75,7 +75,10 @@ func TestWidgetConfigs(t *testing.T) {
 		field    string
 	}{
 		{WidgetLink, `{"service_id":"svc_1"}`, ""},
-		{WidgetLink, `{}`, "service_id"},
+		{WidgetLink, `{}`, "url"},
+		{WidgetLink, `{"url":"http://router.lan","title":"Роутер"}`, ""},
+		{WidgetLink, `{"url":"javascript:alert(1)"}`, "url"},
+		{WidgetLink, `{"url":"router.lan"}`, "url"},
 		{WidgetClock, `{"timezone":"Europe/Moscow"}`, ""},
 		{WidgetClock, `{"timezone":"Mars/Olympus"}`, "timezone"},
 		{WidgetNote, `{"markdown":"` + strings.Repeat("a", 10001) + `"}`, "markdown"},
