@@ -14,7 +14,7 @@ docker compose up -d --build
 docker compose exec homedeck homedeck setup-token
 ```
 
-Разработка: `make run`, `make test`, `make test-integration`, `make lint`.
+Разработка (нужен [just](https://github.com/casey/just)): `just run`, `just test`, `just test-integration`, `just lint`.
 
 | Каталог | Содержимое |
 | --- | --- |

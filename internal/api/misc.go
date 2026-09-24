@@ -262,7 +262,7 @@ func (s *Server) spa() http.Handler {
 	index, err := fs.ReadFile(s.UI, "index.html")
 	if err != nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "UI не собран: выполните make web", http.StatusServiceUnavailable)
+			http.Error(w, "UI не собран: выполните just web", http.StatusServiceUnavailable)
 		})
 	}
 	files := http.FileServerFS(s.UI)

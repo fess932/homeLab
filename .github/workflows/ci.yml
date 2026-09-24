@@ -35,7 +35,8 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - uses: golangci/golangci-lint-action@v8
-      - run: make test-integration
+      - uses: extractions/setup-just@v3
+      - run: just test-integration
 
   image:
     runs-on: ubuntu-latest

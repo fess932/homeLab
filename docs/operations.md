@@ -13,9 +13,9 @@ docker compose exec homedeck homedeck setup-token
 Локально без Docker:
 
 ```sh
-make run            # собирает UI и Go, скачивает VictoriaMetrics в .bin/, данные в ./data
-make test           # go test -race + vitest
-make test-integration  # тесты с настоящей VictoriaMetrics
+just run            # собирает UI и Go, скачивает VictoriaMetrics в .bin/, данные в ./data
+just test           # go test -race + vitest
+just test-integration  # тесты с настоящей VictoriaMetrics
 ```
 
 ## Переменные окружения
