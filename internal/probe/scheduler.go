@@ -21,6 +21,11 @@ const (
 	MaxConcurrent = 10
 )
 
+// confirmInterval — как часто перепроверять, пока состояние не подтверждено порогом
+// (новая проверка или смена «работает»/«не работает»): точка не ждёт несколько
+// обычных интервалов. После подтверждения — снова обычный интервал проверки.
+var confirmInterval = 15 * time.Second
+
 type tracker struct {
 	check       model.Check
 	state       string
@@ -50,6 +55,13 @@ func (t *tracker) record(r Result, at time.Time) {
 			t.state = model.StateDown
 		}
 	}
+}
+
+// unconfirmed — последние результаты расходятся с состоянием или его ещё нет.
+func (t *tracker) unconfirmed() bool {
+	return t.state == model.StateUnknown ||
+		(t.successes > 0 && t.state != model.StateUp) ||
+		(t.failures > 0 && t.state != model.StateDown)
 }
 
 func (t *tracker) status(now time.Time) model.CheckStatus {
@@ -188,39 +200,45 @@ func (s *Scheduler) startRunner(t *tracker) {
 			return
 		case <-timer.C:
 		}
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
 		for {
-			s.runOnce(ctx, c)
+			next := interval
+			if s.runOnce(ctx, c) {
+				next = min(confirmInterval, interval)
+			}
+			timer.Reset(next)
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-timer.C:
 			}
 		}
 	}()
 }
 
-func (s *Scheduler) runOnce(ctx context.Context, c model.Check) {
+// runOnce выполняет проверку и сообщает, нужно ли быстро перепроверить (состояние не подтверждено).
+func (s *Scheduler) runOnce(ctx context.Context, c model.Check) bool {
 	select {
 	case s.sem <- struct{}{}:
 	case <-ctx.Done():
-		return
+		return false
 	}
 	res := s.prober.Probe(ctx, c)
 	<-s.sem
 	if ctx.Err() != nil {
-		return
+		return false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if t, ok := s.trackers[c.ID]; ok && t.check.Revision == c.Revision {
-		prev := t.state
-		t.record(res, s.now())
-		if prev != t.state {
-			s.log.Info("check state changed", "check_id", c.ID, "service_id", c.ServiceID, "from", prev, "to", t.state, "error", res.Error)
-		}
+	t, ok := s.trackers[c.ID]
+	if !ok || t.check.Revision != c.Revision {
+		return false
 	}
+	prev := t.state
+	t.record(res, s.now())
+	if prev != t.state {
+		s.log.Info("check state changed", "check_id", c.ID, "service_id", c.ServiceID, "from", prev, "to", t.state, "error", res.Error)
+	}
+	return t.unconfirmed()
 }
 
 func (s *Scheduler) Stop() {

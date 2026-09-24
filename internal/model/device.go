@@ -35,6 +35,8 @@ type Reading struct {
 	Unit  string  `json:"unit"`
 	Value float64 `json:"value"`
 	State string  `json:"state,omitempty"`
+	// Thresholds — нормы значения: пороги тревоги с устройства или типовые нормы драйвера.
+	Thresholds []Threshold `json:"thresholds,omitempty"`
 }
 
 type DeviceStatus struct {

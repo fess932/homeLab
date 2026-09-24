@@ -4,6 +4,7 @@ import type { Widget } from '@/api'
 import { errorText, t } from '@/i18n'
 import { formatAgo, formatTime, formatValue, thresholdColor } from '@/lib/format'
 import { useWidgetContext, useWidgetData } from './context'
+import WindowAverages from './WindowAverages.vue'
 
 const props = defineProps<{ widget: Widget<'number'> }>()
 const ctx = useWidgetContext()
@@ -32,6 +33,7 @@ const tone = computed(() => thresholdColor(sample.value?.value, data.value?.thre
       :class="[tone, { empty: !sample }]"
       :title="sample ? t('widgets.lastValueAt', { time: formatTime(sample.time) }) : undefined"
     >{{ formatValue(sample?.value, unit, widget.config.decimals) }}</div>
+    <WindowAverages v-if="!error && data?.averages?.length" :averages="data.averages" :unit="unit" />
   </div>
 </template>
 

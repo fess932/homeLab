@@ -3,6 +3,7 @@ package httpjson
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestLookupAndExtract(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if !reflect.DeepEqual(got[i], want[i]) {
 			t.Errorf("%d: %+v, ожидалось %+v", i, got[i], want[i])
 		}
 	}

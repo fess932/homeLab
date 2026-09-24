@@ -242,3 +242,39 @@ func TestClassify(t *testing.T) {
 		t.Errorf("timeout: %s", kind)
 	}
 }
+
+// Пока состояние не подтверждено, проверка повторяется через confirmInterval,
+// после подтверждения — через обычный интервал.
+func TestSchedulerConfirmsQuickly(t *testing.T) {
+	old := confirmInterval
+	confirmInterval = 20 * time.Millisecond
+	defer func() { confirmInterval = old }()
+	fp := &fakeProber{}
+	s := NewScheduler(fp, slog.New(slog.DiscardHandler))
+	defer s.Stop()
+	c := check("a")
+	c.IntervalS = 3600
+	s.Sync([]model.Check{c})
+
+	wait := func(state string) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			if st, _ := s.Status(c.ID); st.State == state {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		st, _ := s.Status(c.ID)
+		t.Fatalf("ожидалось %s, сейчас %+v", state, st)
+	}
+	wait(model.StateUp)
+	calls := fp.calls.Load()
+	time.Sleep(150 * time.Millisecond)
+	if fp.calls.Load() != calls {
+		t.Fatalf("после подтверждения проверка должна ждать обычный интервал: %d → %d", calls, fp.calls.Load())
+	}
+	if UpThreshold != 2 || calls != UpThreshold {
+		t.Fatalf("до зелёного %d проверок", calls)
+	}
+}

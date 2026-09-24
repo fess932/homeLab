@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -226,6 +227,16 @@ type widgetData struct {
 	Instant    *tsdb.InstantResult `json:"instant,omitempty"`
 	Status     *model.CheckStatus  `json:"status,omitempty"`
 	Thresholds []model.Threshold   `json:"thresholds"`
+	// Averages — средние за окна норм (порогов с Window): суточная норма и т. п.
+	Averages []windowAverage `json:"averages,omitempty"`
+}
+
+type windowAverage struct {
+	Window string          `json:"window"`
+	Value  float64         `json:"value"`
+	Norm   model.Threshold `json:"norm"`
+	// Exceeded — среднее за окно вышло за норму.
+	Exceeded bool `json:"exceeded"`
 }
 
 func (s *Server) widgetData(w http.ResponseWriter, r *http.Request) error {
@@ -282,6 +293,10 @@ func (s *Server) buildWidgetData(r *http.Request, wg model.Widget, rangeName str
 	if err != nil {
 		return data, err
 	}
+	if th := s.deviceThresholds(expr); th != nil {
+		data.Thresholds = th
+	}
+	data.Averages = s.windowAverages(r, expr, p, data.Thresholds)
 	if wg.Type == model.WidgetNumber || wg.Type == model.WidgetLink {
 		inst, err := s.instant(r, expr, p, nil)
 		if err != nil {
@@ -580,4 +595,40 @@ func validMetricName(s string) bool {
 		}
 	}
 	return s != ""
+}
+
+// deviceValueRe — запрос одного показания устройства, как в шаблонах tpl_device_*.
+var deviceValueRe = regexp.MustCompile(`homedeck_device_value\{device_id="([^"]+)",key="([^"]+)"\}`)
+
+// deviceThresholds — нормы показания устройства (пороги тревоги с устройства или
+// типовые нормы драйвера) вместо общих порогов шаблона; nil, если их нет.
+func (s *Server) deviceThresholds(expr string) []model.Threshold {
+	m := deviceValueRe.FindStringSubmatch(expr)
+	if m == nil || s.Devices == nil {
+		return nil
+	}
+	for _, r := range s.Devices.Status(m[1]).Readings {
+		if r.Key == m[2] && len(r.Thresholds) > 0 {
+			return r.Thresholds
+		}
+	}
+	return nil
+}
+
+// windowAverages считает среднее за окно каждой нормы с Window и сравнивает с ней.
+// Ошибка запроса не ломает виджет: без среднего он показывает текущее значение.
+func (s *Server) windowAverages(r *http.Request, expr string, p model.Preset, thresholds []model.Threshold) []windowAverage {
+	var out []windowAverage
+	for _, th := range thresholds {
+		if th.Window == "" {
+			continue
+		}
+		res, err := s.instant(r, fmt.Sprintf("avg_over_time((%s)[%s])", expr, th.Window), p, nil)
+		if err != nil || len(res.Samples) == 0 || res.Samples[0].Value == nil {
+			continue
+		}
+		v := *res.Samples[0].Value
+		out = append(out, windowAverage{Window: th.Window, Value: v, Norm: th, Exceeded: th.Hit(v)})
+	}
+	return out
 }

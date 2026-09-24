@@ -5,6 +5,7 @@ import ChartView from '@/components/ChartView.vue'
 import { errorText } from '@/i18n'
 import { pointsForWidth } from '@/lib/time'
 import { useWidgetContext, useWidgetData } from './context'
+import WindowAverages from './WindowAverages.vue'
 
 const props = defineProps<{ widget: Widget<'chart'> }>()
 const ctx = useWidgetContext()
@@ -43,6 +44,7 @@ const unit = computed(() => data.value?.range?.unit ?? preset.value?.unit ?? '')
         :label="title"
       />
     </div>
+    <WindowAverages v-if="data?.averages?.length" :averages="data.averages" :unit="unit" />
   </section>
 </template>
 

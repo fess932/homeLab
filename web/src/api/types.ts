@@ -349,6 +349,17 @@ export type ThresholdColor = 'ok' | 'warn' | 'crit'
 export interface Threshold {
   value: number
   color: ThresholdColor
+  /** Порог снизу: окрашивается значение не выше value. */
+  below?: boolean
+  /** Норма для среднего за окно («24h» — суточная), а не для текущего значения. */
+  window?: RangeName
+}
+
+export interface WindowAverage {
+  window: RangeName
+  value: number
+  norm: Threshold
+  exceeded: boolean
 }
 
 export type Unit =
@@ -436,6 +447,7 @@ export interface WidgetData {
   instant?: InstantResult
   status?: CheckStatus
   thresholds?: Threshold[]
+  averages?: WindowAverage[]
 }
 
 export type TsdbState = 'starting' | 'running' | 'restarting' | 'stopped' | 'failed'

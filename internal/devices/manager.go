@@ -184,7 +184,7 @@ func (m *Manager) poll(ctx context.Context, d model.Device, session string, inli
 		return st, ""
 	}
 	if res.Readings != nil {
-		st.Readings = res.Readings
+		st.Readings = drivers.WithNorms(res.Readings)
 	}
 	st.State, st.LastSuccess, st.Protocol = model.StateUp, model.TimePtr(time.Now()), res.Protocol
 	return st, res.Session

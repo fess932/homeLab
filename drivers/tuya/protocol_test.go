@@ -10,6 +10,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -294,7 +295,7 @@ func TestTuyaReadings(t *testing.T) {
 		"dp_112":       {Key: "dp_112", State: "c"},
 	}
 	for k, w := range want {
-		if got[k] != w {
+		if !reflect.DeepEqual(got[k], w) {
 			t.Errorf("%s: %+v, ожидалось %+v", k, got[k], w)
 		}
 	}

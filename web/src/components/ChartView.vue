@@ -97,7 +97,7 @@ function render() {
             silent: true,
             symbol: 'none',
             label: { show: false },
-            data: props.thresholds.map((th) => ({
+            data: props.thresholds.filter((th) => !th.window).map((th) => ({
               yAxis: th.value,
               lineStyle: { color: css(thresholdColors[th.color]), type: 'dashed' as const },
             })),

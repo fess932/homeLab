@@ -74,6 +74,20 @@ describe('thresholdColor', () => {
     expect(thresholdColor(95, th)).toBe('crit')
   })
 
+  it('supports lower thresholds and ignores window norms', () => {
+    const humidity = [
+      { value: 20, color: 'crit' as const, below: true },
+      { value: 30, color: 'warn' as const, below: true },
+      { value: 60, color: 'warn' as const },
+      { value: 70, color: 'crit' as const },
+    ]
+    expect(thresholdColor(45, humidity)).toBeNull()
+    expect(thresholdColor(25, humidity)).toBe('warn')
+    expect(thresholdColor(15, humidity)).toBe('crit')
+    expect(thresholdColor(75, humidity)).toBe('crit')
+    expect(thresholdColor(20, [{ value: 15, color: 'warn', window: '24h' }])).toBeNull()
+  })
+
   it('returns null without data or thresholds', () => {
     expect(thresholdColor(null, th)).toBeNull()
     expect(thresholdColor(50, [])).toBeNull()

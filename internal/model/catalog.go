@@ -313,9 +313,21 @@ func (s SecretInput) Mask() string {
 	return "••••••"
 }
 
+// Threshold — порог: значение не ниже Value (или не выше, если Below) окрашивается в Color.
+// С Window порог — норма для среднего за окно («24h» — суточная норма), а не для текущего значения.
 type Threshold struct {
-	Value float64 `json:"value"`
-	Color string  `json:"color"`
+	Value  float64 `json:"value"`
+	Color  string  `json:"color"`
+	Below  bool    `json:"below,omitempty"`
+	Window string  `json:"window,omitempty"`
+}
+
+// Hit — значение v достигло порога.
+func (t Threshold) Hit(v float64) bool {
+	if t.Below {
+		return v <= t.Value
+	}
+	return v >= t.Value
 }
 
 type PresetInput struct {
@@ -355,6 +367,8 @@ func (p *PresetInput) Validate() error {
 	v.check(len(p.Thresholds) <= 5, "thresholds", "не более 5 порогов")
 	for i, t := range p.Thresholds {
 		v.check(oneOf(t.Color, "ok", "warn", "crit"), fmt.Sprintf("thresholds[%d].color", i), "ok, warn или crit")
+		_, okWindow := RangeDuration(t.Window)
+		v.check(t.Window == "" || okWindow, fmt.Sprintf("thresholds[%d].window", i), "1h, 6h, 24h, 7d или 30d")
 	}
 	v.check(p.MinStepS >= 0 && p.MinStepS <= 86400, "min_step_s", "от 0 до 86400")
 	return v.err()

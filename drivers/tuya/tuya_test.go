@@ -3,6 +3,7 @@ package tuya
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -34,5 +35,22 @@ func TestNormalize(t *testing.T) {
 	}
 	if id := d.Identity(json.RawMessage(`{"device_id":"abc"}`)); id != "abc" {
 		t.Fatalf("identity %q", id)
+	}
+}
+
+func TestWithAlarmLimits(t *testing.T) {
+	rs := withAlarmLimits([]model.Reading{
+		{Key: "temperature", Value: 23},
+		{Key: "humidity", Value: 44},
+		{Key: "maxtemp_set", Value: 30},
+		{Key: "minitemp_set", Value: 10},
+		{Key: "maxhum_set", Value: 80},
+	})
+	want := []model.Threshold{{Value: 10, Color: "crit", Below: true}, {Value: 30, Color: "crit"}}
+	if !reflect.DeepEqual(rs[0].Thresholds, want) {
+		t.Fatalf("температура: %+v", rs[0].Thresholds)
+	}
+	if !reflect.DeepEqual(rs[1].Thresholds, []model.Threshold{{Value: 80, Color: "crit"}}) {
+		t.Fatalf("влажность: %+v", rs[1].Thresholds)
 	}
 }

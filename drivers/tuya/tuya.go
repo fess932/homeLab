@@ -134,7 +134,7 @@ func (d *Driver) Poll(ctx context.Context, t drivers.Target) (drivers.Result, er
 	if err != nil {
 		return drivers.Result{}, err
 	}
-	return drivers.Result{Readings: readings(dps, c.Schema), Session: used, Protocol: used}, nil
+	return drivers.Result{Readings: withAlarmLimits(readings(dps, c.Schema)), Session: used, Protocol: used}, nil
 }
 
 func (d *Driver) Discover(ctx context.Context, opts drivers.DiscoverOptions) (drivers.DiscoverResult, error) {
@@ -245,6 +245,48 @@ func readings(dps map[string]any, schema []DP) []model.Reading {
 	}
 	slices.SortFunc(out, func(a, b model.Reading) int { return strings.Compare(a.Key, b.Key) })
 	return out
+}
+
+// alarmLimits — точки с порогами тревоги, которые пользователь задаёт в приложении
+// (датчики температуры и влажности): показание → коды нижнего и верхнего порога.
+// У Tuya встречаются оба написания: minitemp_set и mintemp_set.
+var alarmLimits = map[string]struct{ low, high []string }{
+	"temperature": {low: []string{"minitemp_set", "mintemp_set"}, high: []string{"maxtemp_set"}},
+	"humidity":    {low: []string{"minihum_set", "minhum_set"}, high: []string{"maxhum_set"}},
+}
+
+// withAlarmLimits превращает пороги тревоги устройства в пороги показаний:
+// они важнее типовых норм, потому что их выставил сам пользователь.
+func withAlarmLimits(rs []model.Reading) []model.Reading {
+	values := map[string]float64{}
+	for _, r := range rs {
+		values[r.Key] = r.Value
+	}
+	pick := func(codes []string) (float64, bool) {
+		for _, c := range codes {
+			if v, ok := values[c]; ok {
+				return v, true
+			}
+		}
+		return 0, false
+	}
+	for i, r := range rs {
+		lim, ok := alarmLimits[r.Key]
+		if !ok {
+			continue
+		}
+		var th []model.Threshold
+		if v, ok := pick(lim.low); ok {
+			th = append(th, model.Threshold{Value: v, Color: "crit", Below: true})
+		}
+		if v, ok := pick(lim.high); ok {
+			th = append(th, model.Threshold{Value: v, Color: "crit"})
+		}
+		if th != nil {
+			rs[i].Thresholds = th
+		}
+	}
+	return rs
 }
 
 func rawReading(key string, raw any) (model.Reading, bool) {

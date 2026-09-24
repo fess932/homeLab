@@ -102,14 +102,19 @@ export function formatAgo(iso: string | number | null | undefined, now = Date.no
   return t('time.ago', { v: formatDuration(Math.round(diff)) })
 }
 
+const severity = { ok: 0, warn: 1, crit: 2 } as const
+
+/** Цвет текущего значения: самый строгий из достигнутых порогов (нормы за окно не учитываются). */
 export function thresholdColor(
   v: number | null | undefined,
-  thresholds: { value: number; color: 'ok' | 'warn' | 'crit' }[] | undefined,
+  thresholds: { value: number; color: 'ok' | 'warn' | 'crit'; below?: boolean; window?: string }[] | undefined,
 ): 'ok' | 'warn' | 'crit' | null {
   if (!isValue(v) || !thresholds?.length) return null
   let result: 'ok' | 'warn' | 'crit' | null = null
-  for (const th of [...thresholds].sort((a, b) => a.value - b.value)) {
-    if (v >= th.value) result = th.color
+  for (const th of thresholds) {
+    if (th.window) continue
+    const hit = th.below ? v <= th.value : v >= th.value
+    if (hit && (result === null || severity[th.color] > severity[result])) result = th.color
   }
   return result
 }
