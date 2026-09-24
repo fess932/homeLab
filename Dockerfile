@@ -29,14 +29,16 @@ FROM victoriametrics/victoria-metrics:${VM_VERSION}@sha256:86ca5fdb6d87d56ba047b
 
 FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 RUN apk add --no-cache tini ca-certificates \
-    && mkdir -p /data \
-    && chown 1000:1000 /data
+    && mkdir -p /data
 COPY --from=vm /victoria-metrics-prod /usr/local/bin/victoria-metrics
 COPY --from=go /out/homedeck /usr/local/bin/homedeck
 ENV HOMEDECK_DATA_DIR=/data \
     HOMEDECK_LISTEN=:8080 \
     HOMEDECK_VM_BINARY=/usr/local/bin/victoria-metrics
-USER 1000:1000
+# Без USER: процесс работает с правами того, кто запустил контейнер. В rootless Podman
+# и Docker это пользователь хоста, в rootful — root. HomeDeck пишет в любой указанный
+# каталог данных, куда у этого пользователя есть доступ. Привилегии ограничивает
+# compose.yaml (cap_drop, no-new-privileges, read_only).
 VOLUME /data
 EXPOSE 8080
 STOPSIGNAL SIGTERM

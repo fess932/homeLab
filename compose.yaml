@@ -10,7 +10,12 @@ services:
     # на порту 8080 хоста; внутренние адреса ниже слушают только 127.0.0.1 хоста.
     network_mode: host
     volumes:
-      - ./data:/data
+      # Каталог данных на хосте; другой путь — поменяйте ./data здесь.
+      # Создаётся сам. Контейнер работает с правами того, кто его запустил: хватает того,
+      # что у вас есть чтение и запись в этот каталог.
+      # :Z — метка SELinux (Fedora, RHEL): без неё SELinux не пускает контейнер в каталог
+      # хоста. Docker и Podman без SELinux её игнорируют.
+      - ./data:/data:Z
       # Bluetooth через BlueZ хоста: сокет системной шины D-Bus. Контейнеру не нужны
       # дополнительные привилегии; доступ к BlueZ задаёт политика D-Bus на хосте.
       # - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
@@ -18,8 +23,8 @@ services:
     # Путь by-id не меняется при переподключении: ls /dev/serial/by-id/ на хосте.
     # devices:
     #   - /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus-if00-port0:/dev/zigbee
-    # Процесс работает не от root: права на последовательные порты даёт группа dialout
-    # (GID 20 в Debian, Ubuntu и Alpine; на хосте проверьте: stat -c %g /dev/ttyUSB0).
+    # Если контейнер запущен не от root (задан user:), права на последовательный порт даёт
+    # группа dialout (GID 20 в Debian, Ubuntu и Alpine; на хосте: stat -c %g /dev/ttyUSB0).
     # group_add:
     #   - "20"
     # Прямой доступ к Bluetooth-адаптеру без BlueZ хоста. Ослабляет изоляцию — только
@@ -42,12 +47,15 @@ services:
       # HOMEDECK_ALLOWED_HOSTS: homedeck.lan,192.168.0.10
       # Reverse proxy с HTTPS перед панелью: иначе cookie будут без Secure.
       # HOMEDECK_TRUSTED_PROXIES: 192.168.0.2
-    user: "1000:1000"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    # Все привилегии ядра сняты, кроме DAC_OVERRIDE: с ней root контейнера пишет в каталог
+    # данных, даже если на хосте он принадлежит обычному пользователю (Docker с root-демоном).
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped

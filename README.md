@@ -13,10 +13,11 @@
 В Docker — готовый образ `ghcr.io/fess932/homelab:latest`, его собирает и публикует CI на каждый push в `main` (amd64 и arm64):
 
 ```sh
-mkdir -p data && sudo chown 1000:1000 data
 docker compose up -d
 docker compose exec homedeck homedeck setup-token
 ```
+
+Данные лежат в `./data` рядом с `compose.yaml` (другой путь — поменяйте его в `compose.yaml`). Каталог создаётся сам, контейнер работает с правами того, кто его запустил (от root — от root, обычным пользователем в rootless Podman или Docker — от этого пользователя), поэтому достаточно, чтобы у вас было чтение и запись в этот каталог.
 
 Обновление: `docker compose pull && docker compose up -d`. Для фиксированной версии в `compose.yaml` вместо `latest` укажите `sha-<коммит>` или `vX.Y.Z`.
 

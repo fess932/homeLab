@@ -239,14 +239,24 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 func prepareDataDir(cfg config.Config) error {
 	for _, d := range []string{cfg.DataDir, cfg.AssetsDir(), cfg.MetricsDir(), cfg.RevisionsDir()} {
 		if err := os.MkdirAll(d, 0o750); err != nil {
-			return fmt.Errorf("каталог %s: %w", d, err)
+			return dataDirError(d, err)
 		}
 	}
 	probe := filepath.Join(cfg.DataDir, ".write-test")
 	if err := os.WriteFile(probe, []byte("ok"), 0o600); err != nil {
-		return fmt.Errorf("нет прав на запись в %s (uid %d): %w", cfg.DataDir, os.Getuid(), err)
+		return dataDirError(cfg.DataDir, err)
 	}
 	return os.Remove(probe)
+}
+
+// dataDirError объясняет, почему в каталог данных нельзя писать и что проверить.
+func dataDirError(dir string, err error) error {
+	if !errors.Is(err, fs.ErrPermission) {
+		return fmt.Errorf("каталог данных %s: %w", dir, err)
+	}
+	return fmt.Errorf("нет прав на запись в каталог данных %s (процесс работает от uid %d, gid %d): "+
+		"дайте этому пользователю чтение и запись в каталог на хосте; на Fedora и RHEL добавьте к монтированию метку :Z для SELinux: %w",
+		dir, os.Getuid(), os.Getgid(), err)
 }
 
 func lockDataDir(path string) (func(), error) {

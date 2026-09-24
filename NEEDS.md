@@ -4,7 +4,7 @@
 
 ## 2026-09-24 14:23 — Проверка Docker-образа на amd64 и arm64
 
-Здесь нет Docker, поэтому образ не собирался и не запускался. Нужно на машине с Docker: `docker compose up -d` (образ `ghcr.io/fess932/homelab:latest` публикует CI), затем `docker compose exec homedeck homedeck setup-token` и вход в UI. Что проверить: read-only FS + tmpfs /tmp, работа под uid 1000, лимит 1 GiB, остановку за 60 с (`docker compose stop`). Образ для обеих архитектур собирает и публикует CI (`.github/workflows/ci.yml`, job image).
+Здесь нет Docker, поэтому образ не собирался и не запускался. Нужно на машине с Docker: `docker compose up -d` (образ `ghcr.io/fess932/homelab:latest` публикует CI), затем `docker compose exec homedeck homedeck setup-token` и вход в UI. Что проверить: read-only FS + tmpfs /tmp, запуск от root и от обычного пользователя (rootless Podman), лимит 1 GiB, остановку за 60 с (`docker compose stop`). Образ для обеих архитектур собирает и публикует CI (`.github/workflows/ci.yml`, job image).
 
 ---
 

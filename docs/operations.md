@@ -3,7 +3,6 @@
 ## Запуск
 
 ```sh
-mkdir -p data && sudo chown 1000:1000 data
 docker compose up -d
 docker compose exec homedeck homedeck setup-token
 ```
@@ -108,11 +107,11 @@ tar -C ./data -czf homedeck-$(date +%F).tgz .    # весь /data, включа�
 docker compose start homedeck
 ```
 
-Восстановление — в пустой каталог с сохранением владельца:
+Восстановление — в пустой каталог:
 
 ```sh
 docker compose stop homedeck
-mkdir data.new && tar -C data.new -xzpf homedeck-YYYY-MM-DD.tgz && sudo chown -R 1000:1000 data.new
+mkdir data.new && tar -C data.new -xzpf homedeck-YYYY-MM-DD.tgz
 mv data data.old && mv data.new data
 docker compose start homedeck
 ```
@@ -137,7 +136,7 @@ docker compose start homedeck
 ## Безопасность
 
 - Пароли — Argon2id (m=19 MiB, t=2, p=1); сессии — HttpOnly, SameSite=Lax cookie, Secure при HTTPS; CSRF-токен на изменяющие запросы и проверка `Sec-Fetch-Site`/`Origin`; ограничение частоты login/setup.
-- Контейнер без root, read-only корень, `cap_drop: ALL`, `no-new-privileges`, Docker socket не монтируется.
+- Процесс работает с правами того, кто запустил контейнер: в rootless Podman и Docker это пользователь хоста, в rootful — root. Каталог данных (`./data` в `compose.yaml`) создаётся сам; нужны только чтение и запись в него. Метка `:Z` на монтировании нужна SELinux (Fedora, RHEL). Read-only корень, `cap_drop: ALL` с единственной `DAC_OVERRIDE` (запись в каталог данных, принадлежащий другому пользователю хоста), `no-new-privileges`, Docker socket не монтируется.
 - Загрузка файлов: PNG, JPEG, WebP до 5 MiB и 8192×8192, тип проверяется по содержимому; SVG не принимается. Файлы отдаются с `Content-Security-Policy: sandbox` и `nosniff`.
 - Экспорт не содержит секретов, хешей паролей и сессий.
 
