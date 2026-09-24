@@ -131,6 +131,6 @@ func fromZip(data []byte, member string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("в архиве нет %s: %w", member, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return io.ReadAll(f)
 }

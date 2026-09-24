@@ -308,7 +308,7 @@ func (s *Server) discoverDevices(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	res := discoverResponse{DiscoverResult: drivers.DiscoverResult{Candidates: []drivers.Candidate{}, Subnets: []string{}, Warnings: []string{}}, Accounts: []accountRef{}, Added: map[string]string{}}
+	res := discoverResponse{Candidates: []drivers.Candidate{}, Subnets: []string{}, Warnings: []string{}, Accounts: []accountRef{}, Added: map[string]string{}}
 	byRef := map[string]int{}
 	if disc, ok := drv.(drivers.Discoverer); ok {
 		lan, err := disc.Discover(r.Context(), drivers.DiscoverOptions{Subnet: body.Subnet})

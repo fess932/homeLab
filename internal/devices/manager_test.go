@@ -14,10 +14,10 @@ func TestWritePrometheus(t *testing.T) {
 	m := &Manager{}
 	m.Start()
 	defer m.Stop()
-	up := model.Device{ID: "dev_a", DeviceInput: model.DeviceInput{Name: `Датчик "спальня"`, Enabled: new(true), Labels: map[string]string{"room": "bed"}}}
-	down := model.Device{ID: "dev_b", DeviceInput: model.DeviceInput{Name: "Розетка", Enabled: new(true)}}
-	off := model.Device{ID: "dev_c", DeviceInput: model.DeviceInput{Name: "Выкл", Enabled: new(false)}}
-	pending := model.Device{ID: "dev_d", DeviceInput: model.DeviceInput{Name: "Новый", Enabled: new(true)}}
+	up := model.Device{ID: "dev_a", Name: `Датчик "спальня"`, Enabled: new(true), Labels: map[string]string{"room": "bed"}}
+	down := model.Device{ID: "dev_b", Name: "Розетка", Enabled: new(true)}
+	off := model.Device{ID: "dev_c", Name: "Выкл", Enabled: new(false)}
+	pending := model.Device{ID: "dev_d", Name: "Новый", Enabled: new(true)}
 	m.trackers = map[string]*tracker{
 		"dev_a": {dev: up, status: model.DeviceStatus{State: model.StateUp, DurationMS: new(250.0), Readings: []model.Reading{
 			{Key: "temperature", Unit: "celsius", Value: 23.5},
@@ -57,8 +57,8 @@ func TestManagerSyncAndTest(t *testing.T) {
 	m := &Manager{Secret: func(context.Context, string) (secrets.Payload, error) { return secrets.Payload{}, nil }}
 	m.Start()
 	defer m.Stop()
-	d := model.Device{ID: "dev_a", Revision: 1, DeviceInput: model.DeviceInput{Name: "x", Kind: "http_json", Address: "http://127.0.0.1:1/", IntervalS: 3600, TimeoutS: 1, Enabled: new(false),
-		Config: []byte(`{"fields":[{"path":"a","key":"a","unit":"","scale":1}]}`)}}
+	d := model.Device{ID: "dev_a", Revision: 1, Name: "x", Kind: "http_json", Address: "http://127.0.0.1:1/", IntervalS: 3600, TimeoutS: 1, Enabled: new(false),
+		Config: []byte(`{"fields":[{"path":"a","key":"a","unit":"","scale":1}]}`)}
 	m.Sync([]model.Device{d})
 	if st := m.Status("dev_a"); st.State != model.StateDisabled {
 		t.Fatalf("выключенное устройство: %+v", st)

@@ -2,6 +2,7 @@ package tuya
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestNormalize(t *testing.T) {
 		"config":                {"x", `{"deviceid":"eb398c7f26966400abs3ju"}`},
 	} {
 		_, _, err := d.Normalize(c.addr, json.RawMessage(c.cfg))
-		ve, ok := err.(*model.ValidationError)
+		ve, ok := errors.AsType[*model.ValidationError](err)
 		if !ok || ve.Fields[field] == "" {
 			t.Errorf("%s: %v", field, err)
 		}

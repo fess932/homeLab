@@ -117,7 +117,7 @@ func discoverLAN(ctx context.Context, subnets []netip.Prefix, wait time.Duration
 
 	<-ctx.Done()
 	for _, c := range conns {
-		c.Close()
+		_ = c.Close()
 	}
 	wg.Wait()
 
@@ -196,7 +196,7 @@ func sendAppBroadcast(ifaces []ifaceAddr) {
 			continue
 		}
 		_, _ = c.Write(frame)
-		c.Close()
+		_ = c.Close()
 	}
 }
 

@@ -25,7 +25,6 @@ const testKey = "0123456789abcdef"
 type fakeTuya struct {
 	t       *testing.T // nil — устройство молча рвёт соединение на чужие кадры, как настоящее
 	version string
-	key     []byte
 	dps     string
 	seq     uint32
 }

@@ -35,6 +35,9 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - uses: golangci/golangci-lint-action@v9
+        with:
+          # Та же версия, что в justfile (переменная golangci).
+          version: v2.14.0
       - uses: extractions/setup-just@v4
       - run: just test-integration
 

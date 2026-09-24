@@ -32,7 +32,7 @@ var job = sync.OnceValue(func() windows.Handle {
 		BasicLimitInformation: windows.JOBOBJECT_BASIC_LIMIT_INFORMATION{LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE},
 	}
 	if _, err := windows.SetInformationJobObject(h, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil {
-		windows.CloseHandle(h)
+		_ = windows.CloseHandle(h)
 		return 0
 	}
 	return h
@@ -47,7 +47,7 @@ func bindToParent(p *os.Process) {
 	if err != nil {
 		return
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	_ = windows.AssignProcessToJobObject(j, h)
 }
 

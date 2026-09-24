@@ -2,6 +2,7 @@ package httpjson
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestNormalize(t *testing.T) {
 		"config.fields[0].unit": {"http://x/", `{"fields":[{"path":"a","key":"a","unit":"parsec"}]}`},
 	} {
 		_, _, err := Driver{}.Normalize(c.addr, json.RawMessage(c.cfg))
-		ve, ok := err.(*model.ValidationError)
+		ve, ok := errors.AsType[*model.ValidationError](err)
 		if !ok || ve.Fields[name] == "" {
 			t.Errorf("%s: %v", name, err)
 		}

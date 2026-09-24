@@ -1,8 +1,12 @@
-set windows-shell := ["pwsh", "-NoLogo", "-NoProfile", "-Command"]
+# В Windows рецепты выполняет PowerShell, в остальных системах — sh по умолчанию.
+[windows]
+set shell := ["pwsh", "-NoLogo", "-NoProfile", "-Command"]
 
 vm_version := env("VM_VERSION", "v1.152.0")
 version    := env("VERSION", `git describe --tags --always --dirty`)
 data       := env("DATA", "./data")
+# Версия golangci-lint; та же закреплена в .github/workflows/ci.yml
+golangci   := "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0"
 exe        := if os() == "windows" { ".exe" } else { "" }
 vm_bin     := justfile_directory() / ".bin" / "victoria-metrics" + exe
 
@@ -29,8 +33,15 @@ test:
 test-integration: vm
     go test -race -count=1 ./...
 
-lint:
-    golangci-lint run ./...
+# Go-линтер закреплённой версии: go run скачает и соберёт его при первом запуске
+lint-go:
+    go run {{golangci}} run ./...
+
+# Исправить то, что линтер умеет чинить сам
+lint-fix:
+    go run {{golangci}} run --fix ./...
+
+lint: lint-go
     bun run --cwd web typecheck
 
 [env("HOMEDECK_DATA_DIR", data)]
