@@ -42,7 +42,7 @@ async function submit() {
     </label>
     <label class="field">
       <span>{{ t('settings.newPassword') }}</span>
-      <input v-model="next" type="password" class="input" required minlength="10" autocomplete="new-password" />
+      <input v-model="next" type="password" class="input" required minlength="8" autocomplete="new-password" />
       <span class="hint">{{ t('setup.passwordHint') }}</span>
     </label>
     <label class="field">

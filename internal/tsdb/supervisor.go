@@ -3,6 +3,7 @@ package tsdb
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -264,15 +264,19 @@ func (s *Supervisor) pipeLogs(r io.Reader) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
 	for sc.Scan() {
-		line := sc.Text()
+		var e struct{ Level, Caller, Msg string }
+		if err := json.Unmarshal(sc.Bytes(), &e); err != nil || e.Msg == "" {
+			s.log.Info(sc.Text())
+			continue
+		}
 		level := slog.LevelInfo
-		switch {
-		case strings.Contains(line, `"level":"error"`), strings.Contains(line, `"level":"fatal"`), strings.Contains(line, `"level":"panic"`):
+		switch e.Level {
+		case "error", "fatal", "panic":
 			level = slog.LevelError
-		case strings.Contains(line, `"level":"warn"`):
+		case "warn":
 			level = slog.LevelWarn
 		}
-		s.log.Log(context.Background(), level, "tsdb", "raw", line)
+		s.log.Log(context.Background(), level, e.Msg, "caller", e.Caller)
 	}
 	if err := sc.Err(); err != nil {
 		s.log.Warn("tsdb log stream", "err", err)

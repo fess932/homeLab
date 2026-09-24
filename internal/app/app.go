@@ -31,7 +31,15 @@ import (
 
 const shutdownBudget = 55 * time.Second
 
-func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger) error {
+// Started описывает запущенный экземпляр: адреса UI и setup-token, пока нет администратора.
+type Started struct {
+	Version    string
+	URLs       []string
+	DataDir    string
+	SetupToken string
+}
+
+func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, onStart func(Started)) error {
 	log := root.With("component", "app")
 	if err := prepareDataDir(cfg); err != nil {
 		return err
@@ -59,7 +67,7 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger) er
 		return fmt.Errorf("runtime-каталог: %w", err)
 	}
 
-	setup, err := newSetupState(ctx, st, cfg.SetupTokenPath(), log)
+	setup, err := newSetupState(ctx, st, cfg.SetupTokenPath())
 	if err != nil {
 		return err
 	}
@@ -162,7 +170,15 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger) er
 	g.Go(func() error { rec.Run(gctx); return nil })
 	g.Go(func() error { watcher.Run(gctx); return nil })
 	g.Go(func() error { housekeeping(gctx, st, log); return nil })
-	log.Info("homedeck started", "listen", cfg.Listen, "version", cfg.Version, "data", cfg.DataDir, "retention", cfg.Retention)
+	urls := listenURLs(cfg.Listen)
+	log.Info("homedeck started", "url", urls[0], "version", cfg.Version, "data", cfg.DataDir, "retention", cfg.Retention)
+	token, pending := setup.token()
+	if pending {
+		log.Warn("первичная настройка не выполнена: откройте " + urls[0] + " и введите setup-token, его выводит команда `homedeck setup-token`")
+	}
+	if onStart != nil {
+		onStart(Started{Version: cfg.Version, URLs: urls, DataDir: cfg.DataDir, SetupToken: token})
+	}
 
 	<-gctx.Done()
 	log.Info("shutting down")
@@ -229,7 +245,7 @@ type setupState struct {
 	pending bool
 }
 
-func newSetupState(ctx context.Context, st *store.Store, path string, log *slog.Logger) (*setupState, error) {
+func newSetupState(ctx context.Context, st *store.Store, path string) (*setupState, error) {
 	s := &setupState{path: path}
 	has, err := st.HasUsers(ctx)
 	if err != nil {
@@ -252,8 +268,28 @@ func newSetupState(ctx context.Context, st *store.Store, path string, log *slog.
 		return nil, fmt.Errorf("setup-token: %w", err)
 	}
 	s.pending = true
-	log.Warn("первичная настройка не выполнена: откройте UI и введите setup-token, получить его можно командой `homedeck setup-token` внутри контейнера")
 	return s, nil
+}
+
+// listenURLs переводит адрес прослушивания в ссылки для браузера: при прослушивании
+// всех интерфейсов — localhost и IPv4-адреса машины в локальной сети.
+func listenURLs(listen string) []string {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return []string{"http://" + listen}
+	}
+	ip := net.ParseIP(host)
+	if host != "" && (ip == nil || !ip.IsUnspecified()) {
+		return []string{"http://" + net.JoinHostPort(host, port)}
+	}
+	urls := []string{"http://" + net.JoinHostPort("localhost", port)}
+	addrs, _ := net.InterfaceAddrs()
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && n.IP.IsPrivate() {
+			urls = append(urls, "http://"+net.JoinHostPort(n.IP.String(), port))
+		}
+	}
+	return urls
 }
 
 func (s *setupState) token() (string, bool) {

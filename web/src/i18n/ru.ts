@@ -36,7 +36,7 @@ export const ru = {
     token: 'Setup-token',
     username: 'Имя администратора',
     password: 'Пароль',
-    passwordHint: 'Не короче 10 символов',
+    passwordHint: 'Не короче 8 символов',
     passwordRepeat: 'Повторите пароль',
     passwordMismatch: 'Пароли не совпадают',
     panelTitle: 'Название панели',

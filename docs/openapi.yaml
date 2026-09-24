@@ -63,7 +63,7 @@ paths:
               properties:
                 token: { type: string }
                 username: { type: string, minLength: 1, maxLength: 64 }
-                password: { type: string, minLength: 10, maxLength: 256 }
+                password: { type: string, minLength: 8, maxLength: 256 }
                 title: { type: string, maxLength: 100 }
       responses:
         "200":
@@ -120,7 +120,7 @@ paths:
               required: [current, next]
               properties:
                 current: { type: string }
-                next: { type: string, minLength: 10 }
+                next: { type: string, minLength: 8 }
       responses:
         "204": { description: ok }
 

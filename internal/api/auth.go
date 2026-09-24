@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -30,9 +31,16 @@ func (s *Server) getSetup(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+const (
+	minPassword = 8
+	maxPassword = 256
+)
+
+var passwordRule = fmt.Sprintf("от %d до %d символов", minPassword, maxPassword)
+
 func validPassword(p string) error {
-	if utf8.RuneCountInString(p) < 10 || len(p) > 256 {
-		return model.Invalid("password", "от 10 до 256 символов")
+	if utf8.RuneCountInString(p) < minPassword || len(p) > maxPassword {
+		return model.Invalid("password", passwordRule)
 	}
 	return nil
 }
@@ -67,7 +75,7 @@ func (s *Server) postSetup(w http.ResponseWriter, r *http.Request) error {
 		fields["username"] = "от 1 до 64 символов"
 	}
 	if err := validPassword(in.Password); err != nil {
-		fields["password"] = "от 10 до 256 символов"
+		fields["password"] = passwordRule
 	}
 	if utf8.RuneCountInString(in.Title) > 100 {
 		fields["title"] = "до 100 символов"

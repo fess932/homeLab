@@ -55,11 +55,17 @@ func main() {
 func serve(cfg config.Config) {
 	level := slog.LevelInfo
 	_ = level.UnmarshalText([]byte(cfg.LogLevel))
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	console := isConsole()
+	var onStart func(app.Started)
+	if console {
+		defer enableColors()()
+		onStart = printBanner
+	}
+	log := newLogger(console, level)
 	slog.SetDefault(log)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	if err := app.Run(ctx, cfg, web.FS(), log); err != nil {
+	if err := app.Run(ctx, cfg, web.FS(), log, onStart); err != nil {
 		log.Error("fatal", "err", err)
 		os.Exit(1)
 	}

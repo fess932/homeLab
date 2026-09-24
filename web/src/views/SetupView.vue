@@ -71,7 +71,7 @@ async function submit() {
         </label>
         <label class="field">
           <span>{{ t('setup.password') }}</span>
-          <input v-model="form.password" type="password" class="input" required minlength="10" maxlength="256" autocomplete="new-password" />
+          <input v-model="form.password" type="password" class="input" required minlength="8" maxlength="256" autocomplete="new-password" />
           <span class="hint">{{ t('setup.passwordHint') }}</span>
           <span v-if="fieldErrors.password" class="error">{{ fieldErrors.password }}</span>
         </label>
