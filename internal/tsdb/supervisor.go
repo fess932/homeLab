@@ -172,7 +172,7 @@ func (s *Supervisor) Run(ctx context.Context) error {
 func (s *Supervisor) runOnce(ctx context.Context) error {
 	cmd := exec.Command(s.opts.Binary, s.opts.Args()...)
 	cmd.Env = []string{"TZ=UTC"}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcAttr(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -181,6 +181,7 @@ func (s *Supervisor) runOnce(ctx context.Context) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("запуск %s: %w", s.opts.Binary, err)
 	}
+	bindToParent(cmd.Process)
 	s.mu.Lock()
 	s.cmd = cmd
 	s.mu.Unlock()
@@ -218,7 +219,7 @@ func (s *Supervisor) waitReady(ctx context.Context) {
 			return
 		case <-deadline:
 			s.log.Error("tsdb not ready in time, killing", "timeout", readyTimeout)
-			_ = s.Signal(syscall.SIGKILL)
+			_ = s.Signal(os.Kill)
 			return
 		case <-t.C:
 		}
@@ -240,12 +241,12 @@ func (s *Supervisor) waitReady(ctx context.Context) {
 }
 
 func (s *Supervisor) terminate(cmd *exec.Cmd, exited <-chan error) {
-	_ = cmd.Process.Signal(syscall.SIGTERM)
+	stopProcess(cmd.Process)
 	select {
 	case <-exited:
 	case <-time.After(45 * time.Second):
 		s.log.Warn("tsdb did not stop in time, killing")
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		killProcessGroup(cmd.Process)
 		<-exited
 	}
 }

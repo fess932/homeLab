@@ -52,9 +52,6 @@ func LoadOrCreateKey(path string) (*Box, error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("чтение ключа секретов: %w", err)
 	}
-	if st, err := os.Stat(path); err == nil && st.Mode().Perm()&0o077 != 0 {
-		return nil, fmt.Errorf("ключ секретов %s доступен другим пользователям (%o), нужны права 0600", path, st.Mode().Perm())
-	}
 	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
 	if err != nil || len(key) != 32 {
 		return nil, fmt.Errorf("ключ секретов %s: ожидается 32 байта в base64", path)

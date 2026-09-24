@@ -27,7 +27,6 @@ import (
 	"github.com/fess932/homeLab/internal/store"
 	"github.com/fess932/homeLab/internal/tsdb"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sys/unix"
 )
 
 const shutdownBudget = 55 * time.Second
@@ -213,12 +212,12 @@ func lockDataDir(path string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	if err := lockFile(f); err != nil {
 		f.Close()
 		return nil, fmt.Errorf("каталог данных уже используется другим экземпляром HomeDeck: %w", err)
 	}
 	return func() {
-		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+		_ = unlockFile(f)
 		f.Close()
 	}, nil
 }
@@ -301,11 +300,7 @@ func (d *diskMeter) usage() api.DiskUsage {
 		return d.cached
 	}
 	var u api.DiskUsage
-	var sfs unix.Statfs_t
-	if unix.Statfs(d.cfg.DataDir, &sfs) == nil {
-		u.Total = int64(sfs.Blocks) * int64(sfs.Bsize)
-		u.Free = int64(sfs.Bavail) * int64(sfs.Bsize)
-	}
+	u.Total, u.Free, _ = diskSpace(d.cfg.DataDir)
 	u.Metrics = dirSize(d.cfg.MetricsDir())
 	u.App = dirSize(d.cfg.AssetsDir()) + dirSize(d.cfg.RevisionsDir())
 	for _, suffix := range []string{"", "-wal", "-shm"} {

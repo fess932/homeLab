@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/netip"
+	"path/filepath"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestFromEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Ключ по умолчанию лежит в каталоге данных, чтобы попадать в холодный backup.
-	if c.SecretKeyFile != "/srv/hd/secrets.key" || c.DBPath() != "/srv/hd/app.db" || c.MinFreeDisk != 1<<30 {
+	if c.SecretKeyFile != filepath.Join("/srv/hd", "secrets.key") || c.DBPath() != filepath.Join("/srv/hd", "app.db") || c.MinFreeDisk != 1<<30 {
 		t.Fatalf("%+v", c)
 	}
 	if len(c.TrustedProxies) != 2 || !c.TrustedProxies[0].Contains(netip.MustParseAddr("10.0.0.1")) || c.TrustedProxies[0].Bits() != 32 {

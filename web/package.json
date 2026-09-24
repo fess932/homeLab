@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build && touch dist/.gitkeep",
+    "build": "vue-tsc -b && vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "test": "vitest",
     "preview": "vite preview"

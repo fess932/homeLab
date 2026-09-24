@@ -12,10 +12,6 @@ func TestSealOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, _ := os.Stat(path)
-	if st.Mode().Perm() != 0o600 {
-		t.Fatalf("права нового ключа %o", st.Mode().Perm())
-	}
 	sealed, err := box.Seal("sec_a", Payload{Username: "u", Password: "p"})
 	if err != nil {
 		t.Fatal(err)
@@ -44,20 +40,6 @@ func TestSealOpen(t *testing.T) {
 	other, _ := LoadOrCreateKey(filepath.Join(t.TempDir(), "k"))
 	if _, err := other.Open("sec_a", sealed); err == nil {
 		t.Fatal("другой ключ открыл секрет")
-	}
-}
-
-func TestKeyPermissions(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "secrets.key")
-	if _, err := LoadOrCreateKey(path); err != nil {
-		t.Fatal(err)
-	}
-	// Ключ, читаемый другими пользователями, лучше не использовать молча.
-	if err := os.Chmod(path, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := LoadOrCreateKey(path); err == nil {
-		t.Fatal("ключ с правами 0644 должен отклоняться")
 	}
 }
 

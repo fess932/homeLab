@@ -15,6 +15,11 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+var (
+	tokenFile    = filepath.Join("/tmp/hd", "secrets", "src_a", "token")
+	passwordFile = filepath.Join("/tmp/hd", "secrets", "src_b", "password")
+)
+
 func src(id, url string, mod func(*model.SourceInput)) model.Source {
 	in := model.SourceInput{Name: id, Kind: model.SourcePrometheus, URL: url}
 	if mod != nil {
@@ -70,7 +75,7 @@ func TestBuildScrapeConfig(t *testing.T) {
 	if a.MetricsPath != "/metrics" || a.ScrapeInterval != "60s" || a.ScrapeTimeout != "10s" {
 		t.Errorf("src_a: %+v", a)
 	}
-	if a.Authorization == nil || a.Authorization.Type != "Bearer" || a.Authorization.CredentialsFile != "/tmp/hd/secrets/src_a/token" || a.BasicAuth != nil {
+	if a.Authorization == nil || a.Authorization.Type != "Bearer" || a.Authorization.CredentialsFile != tokenFile || a.BasicAuth != nil {
 		t.Errorf("bearer: %+v", a.Authorization)
 	}
 	// Пользовательская метка source_id не должна переопределять служебную.
@@ -83,7 +88,7 @@ func TestBuildScrapeConfig(t *testing.T) {
 	if b.ProxyURL != "http://127.0.0.1:9092" || b.FollowRedirects || b.HonorLabels || b.SampleLimit != SampleLimit || b.SeriesLimit != SeriesPerTarget {
 		t.Errorf("ограничения пользовательского job: %+v", b)
 	}
-	if b.BasicAuth == nil || b.BasicAuth.Username != "u" || b.BasicAuth.PasswordFile != "/tmp/hd/secrets/src_b/password" {
+	if b.BasicAuth == nil || b.BasicAuth.Username != "u" || b.BasicAuth.PasswordFile != passwordFile {
 		t.Errorf("basic: %+v", b.BasicAuth)
 	}
 	if b.TLSConfig == nil || b.TLSConfig.ServerName != "nas.lan" {
@@ -98,7 +103,7 @@ func TestBuildScrapeConfig(t *testing.T) {
 	for _, rf := range files {
 		got[rf.Path] = string(rf.Content)
 	}
-	if got["/tmp/hd/secrets/src_a/token"] != "tkn" || got["/tmp/hd/secrets/src_b/password"] != "p" {
+	if got[tokenFile] != "tkn" || got[passwordFile] != "p" {
 		t.Errorf("runtime-файлы: %v", got)
 	}
 
@@ -108,17 +113,27 @@ func TestBuildScrapeConfig(t *testing.T) {
 	}
 }
 
-func fakeBinary(t *testing.T, script string) string {
+// fakeBinary копирует тестовый бинарник под именем vm-<mode>: TestMain по имени
+// понимает, что его запустили вместо VictoriaMetrics, и ведёт себя согласно mode.
+func fakeBinary(t *testing.T, mode string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "vm")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+script+"\n"), 0o755); err != nil {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(self)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "vm-"+mode+filepath.Ext(self))
+	if err := os.WriteFile(path, data, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return path
 }
 
 func TestSupervisorGivesUp(t *testing.T) {
-	s := NewSupervisor(Options{Binary: fakeBinary(t, "exit 1"), Listen: "127.0.0.1:1"}, slog.New(slog.DiscardHandler))
+	s := NewSupervisor(Options{Binary: fakeBinary(t, "exit"), Listen: "127.0.0.1:1"}, slog.New(slog.DiscardHandler))
 	s.backoff = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond, time.Millisecond, time.Millisecond}
 	err := s.Run(context.Background())
 	if !errors.Is(err, ErrGaveUp) {
@@ -132,7 +147,7 @@ func TestSupervisorGivesUp(t *testing.T) {
 }
 
 func TestSupervisorLifecycle(t *testing.T) {
-	s := NewSupervisor(Options{Binary: fakeBinary(t, "exec sleep 30"), Listen: "127.0.0.1:1"}, slog.New(slog.DiscardHandler))
+	s := NewSupervisor(Options{Binary: fakeBinary(t, "wait"), Listen: "127.0.0.1:1"}, slog.New(slog.DiscardHandler))
 	s.health = func(context.Context) error { return nil }
 	ready := make(chan struct{})
 	s.OnReady(func() { close(ready) })
