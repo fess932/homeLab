@@ -225,7 +225,7 @@ Credentials хранятся отдельно и доступны только �
 
 В MVP не монтируется Docker socket. Он даёт широкие полномочия над Docker host; суффикс `:ro` у mount сокета не превращает Docker API в read-only. При будущей интеграции потребуется отдельное решение доступа с allowlist операций. [Docker security](https://docs.docker.com/engine/security/).
 
-Контейнер работает без root и без privileged. Корневая FS read-only; запись разрешена в `/data` и tmpfs `/tmp`. Все capabilities сняты. Загружаемые PNG/JPEG/WebP проверяются по содержимому и размеру; лимит 5 MiB. Пользовательские SVG в MVP не принимаются. Системные иконки поставляются в проверенном наборе.
+Контейнер работает без privileged и с правами того, кто его запустил: в образе нет фиксированного USER, поэтому в rootless Podman и Docker процесс работает от пользователя хоста, в rootful — от root. Для каталога данных достаточно, чтобы у запустившего были чтение и запись. Корневая FS read-only; запись разрешена в `/data` и tmpfs `/tmp`. Все capabilities сняты, кроме `DAC_OVERRIDE` (запись в каталог данных, принадлежащий другому пользователю хоста). Загружаемые PNG/JPEG/WebP проверяются по содержимому и размеру; лимит 5 MiB. Пользовательские SVG в MVP не принимаются. Системные иконки поставляются в проверенном наборе.
 
 ## 9. Данные, обновление и backup
 
@@ -252,39 +252,15 @@ Runtime-файлы находятся в приватном каталоге `/t
 
 ## 10. Поставка
 
-Ниже целевой контракт запуска будущего образа; образ `homedeck:local` ещё нужно реализовать и собрать.
+Контракт запуска — `compose.yaml` в корне репозитория. Ключевые решения:
 
-```yaml
-services:
-  homedeck:
-    image: homedeck:local
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./data:/data
-    environment:
-      HOMEDECK_RETENTION: 30d
-    user: "1000:1000"
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    restart: unless-stopped
-    stop_grace_period: 60s
-    mem_limit: 1g
-    cpus: 2.0
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/homedeck", "healthcheck"]
-      interval: 30s
-      timeout: 5s
-      start_period: 60s
-      retries: 3
-```
+- образ `ghcr.io/<владелец>/<репозиторий>:latest` публикует CI; `sha-<коммит>` и `vX.Y.Z` — фиксированные версии;
+- `network_mode: host`: без сети хоста поиск устройств не получает широковещательные анонсы;
+- данные — каталог хоста `./data:/data`, он создаётся сам;
+- без `user:`: процесс работает с правами запустившего; `read_only`, `tmpfs /tmp`, `cap_drop: ALL` с `DAC_OVERRIDE`, `no-new-privileges`;
+- `HOMEDECK_RETENTION: 50y`, `stop_grace_period: 60s`, `mem_limit: 1g`, `cpus: 2.0`, healthcheck через `homedeck healthcheck`.
 
-Каталог `./data` предварительно создаётся с владельцем UID/GID 1000; init находится в ENTRYPOINT образа. CLI `healthcheck` проверяет `/readyz`. Статус Docker `unhealthy` сам по себе не перезапускает контейнер: фатальные ошибки завершают главный процесс. Значения ресурсов — стартовая конфигурация для проверки, а не обязательное минимальное потребление.
+Init (tini) находится в ENTRYPOINT образа. CLI `healthcheck` проверяет `/readyz`. Статус Docker `unhealthy` сам по себе не перезапускает контейнер: фатальные ошибки завершают главный процесс. Значения ресурсов — стартовая конфигурация для проверки, а не обязательное минимальное потребление.
 
 ## 11. Проверяемые нефункциональные требования
 

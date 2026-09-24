@@ -136,7 +136,7 @@ docker compose start homedeck
 ## Безопасность
 
 - Пароли — Argon2id (m=19 MiB, t=2, p=1); сессии — HttpOnly, SameSite=Lax cookie, Secure при HTTPS; CSRF-токен на изменяющие запросы и проверка `Sec-Fetch-Site`/`Origin`; ограничение частоты login/setup.
-- Процесс работает с правами того, кто запустил контейнер: в rootless Podman и Docker это пользователь хоста, в rootful — root. Каталог данных (`./data` в `compose.yaml`) создаётся сам; нужны только чтение и запись в него. Метка `:Z` на монтировании нужна SELinux (Fedora, RHEL). Read-only корень, `cap_drop: ALL` с единственной `DAC_OVERRIDE` (запись в каталог данных, принадлежащий другому пользователю хоста), `no-new-privileges`, Docker socket не монтируется.
+- Процесс работает с правами того, кто запустил контейнер: в rootless Podman и Docker это пользователь хоста, в rootful — root. Каталог данных (`./data` в `compose.yaml`) создаётся сам; нужны только чтение и запись в него. Если на хосте включён SELinux и контейнеру отказано в доступе к `./data`, добавьте к монтированию метку `:Z`. Read-only корень, `cap_drop: ALL` с единственной `DAC_OVERRIDE` (запись в каталог данных, принадлежащий другому пользователю хоста), `no-new-privileges`, Docker socket не монтируется.
 - Загрузка файлов: PNG, JPEG, WebP до 5 MiB и 8192×8192, тип проверяется по содержимому; SVG не принимается. Файлы отдаются с `Content-Security-Policy: sandbox` и `nosniff`.
 - Экспорт не содержит секретов, хешей паролей и сессий.
 
