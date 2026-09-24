@@ -1,0 +1,4 @@
+# Скрипты package.json (vite, vitest) выполняются рантаймом Bun, а не Node.js:
+# Node для сборки и тестов UI не нужен.
+[run]
+bun = true

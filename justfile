@@ -8,9 +8,10 @@ vm_bin     := justfile_directory() / ".bin" / "victoria-metrics" + exe
 
 default: build
 
+# UI собирается Bun (web/bunfig.toml), Node.js не нужен
 web:
-    npm --prefix web ci --prefer-offline --no-audit --no-fund
-    npm --prefix web run build
+    bun install --cwd web --frozen-lockfile
+    bun run --cwd web build
 
 [env("CGO_ENABLED", "0")]
 build: web
@@ -22,7 +23,7 @@ vm:
 
 test:
     go test -race ./...
-    npm --prefix web test -- --run
+    bun run --cwd web test --run
 
 [env("HOMEDECK_VM_BINARY", vm_bin)]
 test-integration: vm
@@ -30,7 +31,7 @@ test-integration: vm
 
 lint:
     golangci-lint run ./...
-    npm --prefix web run typecheck
+    bun run --cwd web typecheck
 
 [env("HOMEDECK_DATA_DIR", data)]
 [env("HOMEDECK_RUNTIME_DIR", absolute_path(data) / ".runtime")]

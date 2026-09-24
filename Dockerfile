@@ -2,12 +2,13 @@
 
 ARG VM_VERSION=v1.152.0
 
-FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web
+# UI собирается Bun; версия совпадает с packageManager в web/package.json.
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f AS web
 WORKDIR /src/web
-COPY web/package.json web/package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY web/package.json web/bun.lock web/bunfig.toml ./
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 COPY web/ ./
-RUN npm run build
+RUN bun run build
 
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS go
 ARG TARGETOS TARGETARCH

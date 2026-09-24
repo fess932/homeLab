@@ -17,15 +17,14 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # Версия Bun — из packageManager в web/package.json. Node.js не нужен.
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm test -- --run
-      - run: npm run build
+          bun-version-file: web/package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test --run
+      - run: bun run build
 
   go:
     runs-on: ubuntu-latest

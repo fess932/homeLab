@@ -22,7 +22,7 @@ docker compose exec homedeck homedeck setup-token
 
 В `compose.yaml` по умолчанию сеть bridge. Чтобы «Найти устройства» видел устройства Tuya с id и версией, включите там `network_mode: host` (пояснение — в самом файле).
 
-Локально без Docker (Linux, macOS, Windows), нужен [just](https://github.com/casey/just):
+Локально без Docker (Linux, macOS, Windows), нужны Go, [Bun](https://bun.sh) и [just](https://github.com/casey/just); Node.js не нужен:
 
 ```sh
 just run               # собирает UI и Go, скачивает VictoriaMetrics в .bin/, данные в ./data

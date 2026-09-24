@@ -42,7 +42,7 @@ HomeDeck объединяет стартовую страницу, истори�
 | Поставка | Docker/OCI, multi-stage build | Один runtime-образ для amd64 и arm64 |
 | Контракты | REST JSON + OpenAPI, версионированный YAML | API и перенос настроек |
 
-Vue подходит для компонентного интерактивного UI; собранные статические файлы включаются через `go:embed`. Node.js требуется только при сборке. Возможности библиотек: [Vue](https://vuejs.org/guide/introduction.html), [ECharts](https://echarts.apache.org/en/index.html), [Go embed](https://pkg.go.dev/embed).
+Vue подходит для компонентного интерактивного UI; собранные статические файлы включаются через `go:embed`. Для сборки и тестов UI нужен только Bun, Node.js не требуется. Возможности библиотек: [Vue](https://vuejs.org/guide/introduction.html), [ECharts](https://echarts.apache.org/en/index.html), [Go embed](https://pkg.go.dev/embed).
 
 ### Почему оставить VictoriaMetrics
 

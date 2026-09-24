@@ -148,7 +148,7 @@ docker compose start homedeck
 | Go | 1.27 |
 | VictoriaMetrics single-node | v1.152.0 (`victoriametrics/victoria-metrics@sha256:86ca5fdb…`) |
 | Alpine runtime | 3.24 |
-| Node.js (сборка UI) | 22 |
+| Bun (сборка и тесты UI, без Node.js) | 1.4.2 |
 | Vue / Vite / ECharts | 3.5 / 8.3 / 6.1 |
 | SQLite | modernc.org/sqlite 1.59 (pure Go, без CGO) |
 
