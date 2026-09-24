@@ -50,9 +50,17 @@ const date = computed(() =>
 }
 
 .time {
-  font-size: clamp(1.4rem, 3.5vw, 2.2rem);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-stretch: 75%;
+  font-size: clamp(1.7rem, 3.5vw, 2.6rem);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1.05;
+  color: var(--accent-ink);
+  text-shadow: 0 0 calc(var(--glow) * 1.6) color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.date::first-letter {
+  text-transform: uppercase;
 }
 </style>

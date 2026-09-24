@@ -123,7 +123,7 @@ describe('HomeView', () => {
     expect(link.attributes('target')).toBe('_blank')
     expect(link.text()).toContain('доступен')
     // статус объясняет, какой проверкой он определён
-    expect(link.find('.badge').attributes('title')).toContain('http://nas.lan:5000/health')
+    expect(link.find('.led').attributes('title')).toContain('http://nas.lan:5000/health')
     expect(w.find('.w-note').text()).toBe('Привет')
     w.unmount()
   })

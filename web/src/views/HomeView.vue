@@ -239,7 +239,9 @@ onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
 .tabs {
@@ -251,18 +253,31 @@ onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
 }
 
 .tab {
-  padding: 6px 12px;
-  border-radius: 999px;
-  color: var(--text);
+  position: relative;
+  padding: 4px 12px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--text-muted);
   text-decoration: none;
-  background: var(--surface);
-  border: 1px solid var(--border);
+}
+
+.tab:hover {
+  color: var(--text);
 }
 
 .tab[aria-current='page'] {
+  color: var(--text);
+}
+
+.tab[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -11px;
+  height: 2px;
   background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
+  box-shadow: 0 0 var(--glow) var(--accent);
 }
 
 .search {

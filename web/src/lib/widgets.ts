@@ -38,7 +38,7 @@ export function defaultConfig<T extends WidgetType>(type: T): WidgetConfigMap[T]
 
 export const defaultTheme = (): Theme => ({
   mode: 'system',
-  accent: '#3b82f6',
+  accent: '#22c3e6',
   background_asset_id: null,
   density: 'comfortable',
   columns: 12,

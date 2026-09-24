@@ -41,7 +41,7 @@ type Theme struct {
 }
 
 func DefaultTheme() Theme {
-	return Theme{Mode: "system", Accent: "#3b82f6", Density: "comfortable", Columns: 12}
+	return Theme{Mode: "system", Accent: "#22c3e6", Density: "comfortable", Columns: 12}
 }
 
 type Rect struct {

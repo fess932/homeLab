@@ -3,9 +3,9 @@ import { computed, toRef } from 'vue'
 import type { Widget } from '@/api'
 import ChartView from '@/components/ChartView.vue'
 import ServiceIcon from '@/components/ui/ServiceIcon.vue'
-import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { t } from '@/i18n'
 import { formatValue, isValue } from '@/lib/format'
+import { probeTone, statusText } from '@/lib/status'
 import { useWidgetContext, useWidgetData } from './context'
 
 const props = defineProps<{ widget: Widget<'link'> }>()
@@ -21,6 +21,8 @@ const basis = computed(() =>
 )
 const newTab = computed(() => service.value?.open_mode === 'new_tab')
 const latency = computed(() => service.value?.status?.duration_ms)
+const showStatus = computed(() => cfg.value.show_status && !!service.value?.check_id)
+const tone = computed(() => (showStatus.value ? probeTone[service.value?.status?.state ?? 'unknown'] : ''))
 
 function guard(e: MouseEvent) {
   if (ctx.mode === 'edit') e.preventDefault()
@@ -34,24 +36,27 @@ function guard(e: MouseEvent) {
   <a
     v-else
     class="card w-link"
+    :class="tone"
     :href="service.url"
     :target="newTab ? '_blank' : undefined"
     :rel="newTab ? 'noopener noreferrer' : undefined"
     :draggable="false"
     @click="guard"
   >
-    <ServiceIcon :icon="service.icon" :size="32" />
+    <span v-if="showStatus" class="led" :title="basis || statusText(service.status)">
+      <span class="sr-only">{{ statusText(service.status) }}</span>
+    </span>
+    <ServiceIcon :icon="service.icon" :size="28" />
     <div class="body">
       <div class="head">
         <span class="name">{{ service.name }}</span>
         <span v-if="newTab" class="sr-only">({{ t('widgets.openNewTab') }})</span>
-        <StatusBadge v-if="cfg.show_status && service.check_id" :status="service.status" :title="basis" />
+        <span v-if="cfg.show_latency && service.check_id" class="latency" :title="t('widgets.latency')">
+          {{ isValue(latency) ? formatValue(latency, 'milliseconds') : t('units.noData') }}
+        </span>
       </div>
-      <p v-if="service.description" class="desc muted small">{{ service.description }}</p>
-      <div v-if="cfg.show_latency && service.check_id" class="small muted">
-        {{ t('widgets.latency') }}: {{ isValue(latency) ? formatValue(latency, 'milliseconds') : t('units.noData') }}
-      </div>
-      <div v-if="service.tags.length" class="tags">
+      <div v-if="service.description || service.tags.length" class="sub">
+        <p class="desc muted small">{{ service.description }}</p>
         <span v-for="tag in service.tags" :key="tag" class="tag">{{ tag }}</span>
       </div>
     </div>
@@ -67,14 +72,14 @@ function guard(e: MouseEvent) {
   gap: 12px;
   align-items: flex-start;
   height: 100%;
+  padding-left: calc(var(--pad) + 4px);
   color: var(--text);
   text-decoration: none;
   overflow: hidden;
-  position: relative;
 }
 
 a.w-link:hover {
-  border-color: var(--accent);
+  --edge: var(--accent);
 }
 
 .missing {
@@ -82,22 +87,47 @@ a.w-link:hover {
   justify-content: center;
 }
 
+/* Индикатор состояния: полоса по левому краю модуля. */
+.led {
+  position: absolute;
+  left: 1px;
+  top: var(--cut);
+  bottom: 1px;
+  width: 3px;
+  background: var(--muted);
+}
+
+.ok .led {
+  background: var(--ok);
+  box-shadow: 0 0 var(--glow) var(--ok);
+}
+
+.bad .led {
+  background: var(--bad);
+  box-shadow: 0 0 var(--glow) var(--bad);
+}
+
+.warn .led {
+  background: var(--warn);
+  box-shadow: 0 0 var(--glow) var(--warn);
+}
+
 .body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .name {
+  flex: 1;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -105,19 +135,32 @@ a.w-link:hover {
   min-width: 0;
 }
 
-.desc {
-  margin: 0;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+.latency {
+  flex: none;
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
-.tags {
+.bad .latency {
+  color: var(--bad);
+}
+
+.sub {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
+  min-width: 0;
+}
+
+.desc {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spark {

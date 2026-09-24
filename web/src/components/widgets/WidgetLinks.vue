@@ -58,14 +58,15 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px;
-  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  border-left: 2px solid transparent;
   color: var(--text);
   text-decoration: none;
 }
 
 a:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-left-color: var(--accent);
 }
 
 .name {

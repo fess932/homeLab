@@ -53,25 +53,35 @@ const active = computed(() => {
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 16px;
+  gap: 2px;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
 }
 
 .tab {
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  color: var(--text);
+  position: relative;
+  padding: 7px 12px 9px;
+  color: var(--text-muted);
   text-decoration: none;
+  font-weight: 500;
 }
 
 .tab:hover {
-  background: var(--surface-2);
+  color: var(--text);
 }
 
 .tab[aria-current='page'] {
+  color: var(--accent-ink);
+}
+
+.tab[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
   background: var(--accent);
-  color: var(--accent-contrast);
+  box-shadow: 0 0 var(--glow) var(--accent);
 }
 </style>

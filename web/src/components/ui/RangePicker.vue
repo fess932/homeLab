@@ -94,13 +94,24 @@ function applyCustom() {
 .seg {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+}
+
+.seg .btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.seg .btn:first-child {
+  margin-left: 0;
 }
 
 .seg .btn[aria-pressed='true'] {
-  background: var(--accent);
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   border-color: var(--accent);
-  color: var(--accent-contrast);
+  color: var(--accent-ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .custom {

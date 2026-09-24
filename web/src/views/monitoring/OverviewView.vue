@@ -172,9 +172,13 @@ usePolling(async (signal) => {
 }
 
 .big {
-  font-size: 2rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-stretch: 75%;
+  font-size: 2.2rem;
+  font-weight: 600;
   line-height: 1.1;
+  color: var(--accent-ink);
+  text-shadow: 0 0 calc(var(--glow) * 1.6) color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .err {

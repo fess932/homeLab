@@ -60,23 +60,43 @@ async function logout() {
 <style scoped>
 .appbar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
-  padding: 8px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: relative;
+  min-height: 52px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-strong);
+  position: sticky;
+  top: 0;
   z-index: 20;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 700;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   color: var(--text);
   text-decoration: none;
   min-width: 0;
+}
+
+.brand::before {
+  content: '';
+  flex: none;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  box-shadow: 0 0 var(--glow) var(--accent);
+}
+
+.brand:has(img)::before {
+  display: none;
 }
 
 .brand span {
@@ -93,22 +113,38 @@ async function logout() {
 }
 
 .nav-link {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  color: var(--text);
+  gap: 7px;
+  padding: 0 12px;
+  color: var(--text-muted);
   text-decoration: none;
+  font-weight: 500;
+  transition: color 0.12s;
 }
 
 .nav-link:hover {
-  background: var(--surface-2);
+  color: var(--text);
 }
 
 .nav-link[aria-current='page'] {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-ink);
+}
+
+.nav-link[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 var(--glow) var(--accent);
+}
+
+.logout {
+  align-self: center;
 }
 
 main:focus {
@@ -125,11 +161,11 @@ main:focus {
   }
 
   .nav-link {
-    padding: 8px;
+    padding: 0 10px;
   }
 
   .appbar {
-    padding: 8px 10px;
+    padding: 0 10px;
     gap: 6px;
   }
 }

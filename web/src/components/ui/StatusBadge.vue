@@ -9,7 +9,7 @@ const text = computed(() => statusText(props.status))
 </script>
 
 <template>
-  <span class="badge" :class="probeTone[state]" :title="status?.error || text">
+  <span class="badge" :class="[probeTone[state], { compact }]" :title="status?.error || text">
     <span class="dot" aria-hidden="true" />
     <span :class="{ 'sr-only': compact }">{{ text }}</span>
   </span>

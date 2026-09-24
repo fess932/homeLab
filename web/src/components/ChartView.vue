@@ -45,6 +45,12 @@ function hasIsolated(values: (number | null)[]) {
   return values.some((v, i) => v !== null && (values[i - 1] ?? null) === null && (values[i + 1] ?? null) === null)
 }
 
+// Canvas понимает не все CSS-цвета, поэтому прозрачность задаём через rgba.
+function withAlpha(hex: string, a: number): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
+  return m ? `rgba(${parseInt(m[1]!, 16)}, ${parseInt(m[2]!, 16)}, ${parseInt(m[3]!, 16)}, ${a})` : hex
+}
+
 function render() {
   if (!el.value || !props.result) return
   chart ??= init(el.value, undefined, { renderer: 'canvas' })
@@ -52,6 +58,12 @@ function render() {
   const text = css('--text-muted')
   const border = css('--border')
   const accent = css('--accent')
+  const glow = parseFloat(css('--glow')) || 0
+  const font = css('--font')
+  const single = r.series.length === 1 || props.spark
+  // Низкому графику хватает трёх делений: иначе подписи оси Y налезают друг на друга.
+  const h = el.value.clientHeight || 200
+  const splitNumber = h < 110 ? 1 : h < 170 ? 2 : h < 240 ? 3 : 5
   const series = r.series.map((s, i) => ({
     name: s.name || Object.values(s.labels).join(' ') || `#${i + 1}`,
     type: 'line' as const,
@@ -59,8 +71,24 @@ function render() {
     symbolSize: 3,
     connectNulls: false,
     stack: props.stacked ? 'total' : undefined,
-    areaStyle: props.stacked || props.spark ? { opacity: props.spark ? 0.15 : 0.35 } : undefined,
-    lineStyle: { width: props.spark ? 1.5 : 1.8 },
+    areaStyle: props.stacked
+      ? { opacity: 0.35 }
+      : single
+        ? {
+            color: {
+              type: 'linear' as const,
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: withAlpha(accent, 0.28) },
+                { offset: 1, color: withAlpha(accent, 0) },
+              ],
+            },
+          }
+        : undefined,
+    lineStyle: { width: props.spark ? 1.5 : 1.6, shadowBlur: glow, shadowColor: accent },
     emphasis: { disabled: props.spark },
     data: s.values.map((v, idx) => [(r.start + idx * r.step) * 1000, v]),
     markLine:
@@ -79,7 +107,8 @@ function render() {
   chart.setOption(
     {
       animation: false,
-      color: r.series.length === 1 || props.spark ? [accent] : undefined,
+      textStyle: { fontFamily: font },
+      color: single ? [accent] : undefined,
       grid: props.spark
         ? { left: 0, right: 0, top: 2, bottom: 0 }
         : { left: 8, right: 12, top: r.series.length > 1 ? 36 : 12, bottom: 8, containLabel: true },
@@ -88,6 +117,11 @@ function render() {
         ? { show: false }
         : {
             trigger: 'axis',
+            appendTo: 'body',
+            backgroundColor: css('--surface'),
+            borderColor: css('--border-strong'),
+            textStyle: { color: css('--text'), fontFamily: font },
+            axisPointer: { lineStyle: { color: accent, type: 'dashed' as const } },
             valueFormatter: (v: unknown) => formatValue(typeof v === 'number' ? v : null, props.unit),
           },
       xAxis: {
@@ -100,8 +134,9 @@ function render() {
         type: 'value',
         show: !props.spark,
         scale: props.spark,
+        splitNumber,
         axisLabel: { color: text, formatter: (v: number) => formatAxis(v, props.unit) },
-        splitLine: { lineStyle: { color: border } },
+        splitLine: { lineStyle: { color: border, type: 'dashed' as const } },
         min: props.unit === 'percent' && !props.spark ? 0 : undefined,
       },
       series,

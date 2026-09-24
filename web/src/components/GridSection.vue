@@ -265,7 +265,7 @@ function endDrag(e: PointerEvent) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-pop);
 }
 
 .cell:hover .tools,
@@ -288,8 +288,8 @@ function endDrag(e: PointerEvent) {
   height: 22px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   cursor: nwse-resize;
   touch-action: none;

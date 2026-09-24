@@ -103,7 +103,12 @@ function removeWidget(id: string) {
           </button>
           <span class="spacer" />
           <label class="sr-only" :for="`add-${g.id}`">{{ t('editor.addWidget') }}</label>
-          <select :id="`add-${g.id}`" v-model="adding[g.id]" class="input add-type">
+          <select
+            :id="`add-${g.id}`"
+            :value="adding[g.id] ?? 'link'"
+            class="input add-type"
+            @change="adding[g.id] = ($event.target as HTMLSelectElement).value as WidgetType"
+          >
             <option v-for="wt in widgetTypes" :key="wt" :value="wt">{{ t(`widgets.types.${wt}`) }}</option>
           </select>
           <button type="button" class="btn small" @click="addWidget(g.id)">
@@ -152,11 +157,22 @@ function removeWidget(id: string) {
 }
 
 .group-head h2 {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0;
-  font-size: 1.05rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+/* Разделитель группы гаснет к краю, как линия на экране радара. */
+.group-head h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-strong), transparent);
 }
 
 .group-title {

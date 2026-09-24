@@ -38,11 +38,12 @@ function onCancel(e: Event) {
   width: min(560px, calc(100vw - 20px));
   max-height: calc(100dvh - 20px);
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
+  border-top: 2px solid var(--accent);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
+  box-shadow: var(--shadow-pop);
   display: flex;
   flex-direction: column;
 }
@@ -56,7 +57,8 @@ function onCancel(e: Event) {
 }
 
 .modal::backdrop {
-  background: rgb(0 0 0 / 0.45);
+  background: rgb(2 6 10 / 0.6);
+  backdrop-filter: blur(2px);
 }
 
 .modal-head {
