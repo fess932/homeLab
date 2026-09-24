@@ -1,0 +1,93 @@
+import { computed, reactive } from 'vue'
+import { api, type Check, type PageSummary, type QueryPreset, type Service, type Session, type Settings, type Source } from '@/api'
+
+interface State {
+  session: Session | null
+  settings: Settings | null
+  pages: PageSummary[]
+  services: Service[]
+  presets: QueryPreset[]
+  sources: Source[]
+  checks: Check[]
+  loaded: { services: boolean; presets: boolean; sources: boolean; pages: boolean; checks: boolean }
+}
+
+export const store = reactive<State>({
+  session: null,
+  settings: null,
+  pages: [],
+  services: [],
+  presets: [],
+  sources: [],
+  checks: [],
+  loaded: { services: false, presets: false, sources: false, pages: false, checks: false },
+})
+
+export const servicesById = computed(() => new Map(store.services.map((s) => [s.id, s])))
+export const presetsById = computed(() => new Map(store.presets.map((p) => [p.id, p])))
+export const checksById = computed(() => new Map(store.checks.map((c) => [c.id, c])))
+export const sourcesById = computed(() => new Map(store.sources.map((s) => [s.id, s])))
+
+export async function loadSession(): Promise<Session | null> {
+  try {
+    store.session = await api.session()
+  } catch {
+    store.session = null
+  }
+  return store.session
+}
+
+export async function loadSettings() {
+  store.settings = await api.settings.get()
+  return store.settings
+}
+
+export async function loadPages() {
+  store.pages = (await api.pages.list()).sort((a, b) => a.order - b.order)
+  store.loaded.pages = true
+  return store.pages
+}
+
+export async function loadServices() {
+  store.services = await api.services.list()
+  store.loaded.services = true
+  return store.services
+}
+
+export async function loadPresets() {
+  store.presets = await api.presets.list()
+  store.loaded.presets = true
+  return store.presets
+}
+
+export async function loadSources() {
+  store.sources = await api.sources.list()
+  store.loaded.sources = true
+  return store.sources
+}
+
+export async function loadChecks() {
+  store.checks = await api.checks.list()
+  store.loaded.checks = true
+  return store.checks
+}
+
+export async function ensureCatalog() {
+  const tasks: Promise<unknown>[] = []
+  if (!store.loaded.services) tasks.push(loadServices())
+  if (!store.loaded.presets) tasks.push(loadPresets())
+  if (!store.loaded.sources) tasks.push(loadSources())
+  if (!store.loaded.checks) tasks.push(loadChecks())
+  await Promise.all(tasks)
+}
+
+export function resetStore() {
+  store.session = null
+  store.settings = null
+  store.pages = []
+  store.services = []
+  store.presets = []
+  store.sources = []
+  store.checks = []
+  store.loaded = { services: false, presets: false, sources: false, pages: false, checks: false }
+}

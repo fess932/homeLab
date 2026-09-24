@@ -1,0 +1,28 @@
+services:
+  homedeck:
+    image: homedeck:local
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      HOMEDECK_RETENTION: 30d
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: 1g
+    cpus: 2.0
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/homedeck", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3

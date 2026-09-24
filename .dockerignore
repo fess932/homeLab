@@ -1,0 +1,9 @@
+.git
+.bin
+data
+homedeck
+web/node_modules
+web/dist
+**/*.tsbuildinfo
+docs
+*.md

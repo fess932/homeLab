@@ -1,0 +1,1119 @@
+openapi: 3.1.0
+info:
+  title: HomeDeck API
+  version: 1.0.0
+  description: |
+    Все маршруты `/api/v1/*`, кроме setup, login, session и public, требуют сессии.
+    Изменяющие запросы с сессией требуют заголовок `X-CSRF-Token` из `GET /api/v1/session`.
+    Обновление сущностей с ревизией требует `If-Match: "<revision>"`; несовпадение возвращает 409.
+    Время — RFC 3339 в UTC; длительности — целые секунды; ID — строки с префиксом типа.
+servers:
+  - url: /
+tags:
+  - name: auth
+  - name: pages
+  - name: catalog
+  - name: monitoring
+  - name: settings
+  - name: portability
+  - name: public
+  - name: system
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      summary: Процесс backend жив
+      responses:
+        "200": { description: ok }
+  /readyz:
+    get:
+      tags: [system]
+      summary: SQLite, TSDB и конфигурация сбора готовы
+      responses:
+        "200": { description: ready }
+        "503":
+          description: not ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+
+  /api/v1/setup:
+    get:
+      tags: [auth]
+      summary: Нужна ли первичная настройка
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [required]
+                properties:
+                  required: { type: boolean }
+    post:
+      tags: [auth]
+      summary: Создать администратора по одноразовому setup-token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, username, password, title]
+              properties:
+                token: { type: string }
+                username: { type: string, minLength: 1, maxLength: 64 }
+                password: { type: string, minLength: 10, maxLength: 256 }
+                title: { type: string, maxLength: 100 }
+      responses:
+        "200":
+          description: Администратор создан, сессия установлена cookie
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/v1/login:
+    post:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/v1/logout:
+    post:
+      tags: [auth]
+      responses:
+        "204": { description: ok }
+  /api/v1/session:
+    get:
+      tags: [auth]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/v1/password:
+    put:
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current, next]
+              properties:
+                current: { type: string }
+                next: { type: string, minLength: 10 }
+      responses:
+        "204": { description: ok }
+
+  /api/v1/settings:
+    get:
+      tags: [settings]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+    put:
+      tags: [settings]
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Settings" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+
+  /api/v1/pages:
+    get:
+      tags: [pages]
+      summary: Список страниц без виджетов
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PageSummary" }
+    post:
+      tags: [pages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PageInput" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+  /api/v1/pages/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [pages]
+      summary: Страница целиком; id или slug
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+    put:
+      tags: [pages]
+      summary: Атомарное сохранение страницы вместе с группами и виджетами
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PageInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [pages]
+      responses:
+        "204": { description: ok }
+
+  /api/v1/services:
+    get:
+      tags: [catalog]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Service" }
+    post:
+      tags: [catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceInput" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+  /api/v1/services/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [catalog]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+    put:
+      tags: [catalog]
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+    delete:
+      tags: [catalog]
+      responses:
+        "204": { description: ok }
+
+  /api/v1/checks:
+    get:
+      tags: [monitoring]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Check" }
+    post:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckInput" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Check" }
+  /api/v1/checks/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [monitoring]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Check" }
+    put:
+      tags: [monitoring]
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Check" }
+    delete:
+      tags: [monitoring]
+      responses:
+        "204": { description: ok }
+
+  /api/v1/sources:
+    get:
+      tags: [monitoring]
+      summary: Пользовательские и системные источники
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Source" }
+    post:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SourceInput" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Source" }
+  /api/v1/sources/test:
+    post:
+      tags: [monitoring]
+      summary: Проверка несохранённого источника
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SourceInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceTestResult" }
+  /api/v1/sources/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [monitoring]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Source" }
+    put:
+      tags: [monitoring]
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SourceInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Source" }
+        "403": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [monitoring]
+      responses:
+        "204": { description: ok }
+  /api/v1/sources/{id}/test:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [monitoring]
+      summary: Ограниченная проверка соединения без изменения настроек
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceTestResult" }
+
+  /api/v1/secrets:
+    get:
+      tags: [monitoring]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Secret" }
+    post:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SecretInput" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Secret" }
+  /api/v1/secrets/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SecretInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Secret" }
+    delete:
+      tags: [monitoring]
+      responses:
+        "204": { description: ok }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /api/v1/presets:
+    get:
+      tags: [monitoring]
+      summary: Встроенные шаблоны и сохранённые запросы
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/QueryPreset" }
+    post:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QueryPresetInput" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QueryPreset" }
+  /api/v1/presets/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put:
+      tags: [monitoring]
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QueryPresetInput" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QueryPreset" }
+    delete:
+      tags: [monitoring]
+      responses:
+        "204": { description: ok }
+
+  /api/v1/status:
+    get:
+      tags: [monitoring]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+  /api/v1/metrics/query:
+    post:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InstantQuery" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstantResult" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "504": { $ref: "#/components/responses/Error" }
+  /api/v1/metrics/query-range:
+    post:
+      tags: [monitoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RangeQuery" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RangeResult" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "504": { $ref: "#/components/responses/Error" }
+
+  /api/v1/assets:
+    get:
+      tags: [catalog]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Asset" }
+    post:
+      tags: [catalog]
+      summary: PNG, JPEG или WebP до 5 MiB
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
+  /api/v1/assets/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    delete:
+      tags: [catalog]
+      responses:
+        "204": { description: ok }
+        "409": { $ref: "#/components/responses/Error" }
+  /assets/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [catalog]
+      summary: Содержимое загруженного файла, без авторизации
+      responses:
+        "200": { description: file }
+
+  /api/v1/import/preview:
+    post:
+      tags: [portability]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [format, file]
+              properties:
+                format: { type: string, enum: [homedeck, homer] }
+                file: { type: string, format: binary, description: YAML }
+                assets: { type: string, format: binary, description: ZIP с иконками Homer, пути относительно конфига }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/import/apply:
+    post:
+      tags: [portability]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/export:
+    get:
+      tags: [portability]
+      summary: YAML без секретов, хешей и сессий
+      responses:
+        "200":
+          content:
+            application/yaml: {}
+  /api/v1/revisions:
+    get:
+      tags: [portability]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ConfigRevision" }
+
+  /api/v1/public:
+    get:
+      tags: [public]
+      summary: Опубликованная страница; 404, если публикация выключена
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPage" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/public/widgets/{id}/data:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: range
+        in: query
+        schema: { $ref: "#/components/schemas/RangeName" }
+      - name: points
+        in: query
+        schema: { type: integer, minimum: 10, maximum: 1000 }
+    get:
+      tags: [public]
+      summary: Данные опубликованного виджета; выражение выбирает сервер
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WidgetData" }
+  /api/v1/widgets/{id}/data:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: range
+        in: query
+        schema: { $ref: "#/components/schemas/RangeName" }
+      - name: start
+        in: query
+        schema: { type: string, format: date-time }
+      - name: end
+        in: query
+        schema: { type: string, format: date-time }
+      - name: points
+        in: query
+        schema: { type: integer, minimum: 10, maximum: 1000 }
+    get:
+      tags: [pages]
+      summary: Данные сохранённого виджета number, chart, status или link
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WidgetData" }
+
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string, example: '"3"' }
+  responses:
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          description: machine-readable, например validation, not_found, conflict, unauthorized, forbidden, rate_limited, tsdb_unavailable, query_timeout, too_many_series, payload_too_large, unsupported_media, internal
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+          description: для validation — объект field → сообщение
+        request_id: { type: string }
+    Readiness:
+      type: object
+      properties:
+        sqlite: { type: string }
+        tsdb: { type: string }
+        config: { type: string }
+    Session:
+      type: object
+      required: [user, csrf_token]
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            username: { type: string }
+        csrf_token: { type: string }
+    Settings:
+      type: object
+      properties:
+        title: { type: string }
+        logo_asset_id: { type: [string, "null"] }
+        start_page_id: { type: [string, "null"] }
+        public_page_id: { type: [string, "null"], description: null — публичная страница выключена }
+        revision: { type: integer, readOnly: true }
+        restart_required:
+          type: array
+          readOnly: true
+          items: { type: string }
+          description: Параметры запуска, отличающиеся от сохранённых ожиданий
+        runtime:
+          type: object
+          readOnly: true
+          properties:
+            listen: { type: string }
+            data_dir: { type: string }
+            retention: { type: string }
+            version: { type: string }
+            tsdb_version: { type: string }
+
+    Theme:
+      type: object
+      properties:
+        mode: { type: string, enum: [system, light, dark] }
+        accent: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        background_asset_id: { type: [string, "null"] }
+        density: { type: string, enum: [comfortable, compact] }
+        columns: { type: integer, enum: [4, 6, 8, 12], description: колонок на широком экране }
+    Breakpoint:
+      type: string
+      enum: [lg, md, sm]
+      description: lg ≥ 1024px, 12 колонок (или theme.columns); md ≥ 640px, 6 колонок; sm — 1 колонка
+    Rect:
+      type: object
+      required: [x, y, w, h]
+      properties:
+        x: { type: integer, minimum: 0 }
+        y: { type: integer, minimum: 0 }
+        w: { type: integer, minimum: 1 }
+        h: { type: integer, minimum: 1 }
+    Group:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string, description: grp_*; новый — любой уникальный клиентский id вида new_* }
+        title: { type: string }
+        collapsed: { type: boolean }
+    WidgetType:
+      type: string
+      enum: [link, links, clock, note, number, chart, status]
+    Widget:
+      type: object
+      required: [id, group_id, type, config, layout]
+      properties:
+        id: { type: string, description: wgt_*; новый — new_* }
+        group_id: { type: string }
+        type: { $ref: "#/components/schemas/WidgetType" }
+        public: { type: boolean }
+        config:
+          description: |
+            link:   { service_id, show_status: bool, show_latency: bool, metric: MetricRef|null }
+            links:  { title, service_ids: string[] }
+            clock:  { timezone: IANA|"", hour12: bool, show_date: bool, show_seconds: bool }
+            note:   { markdown: string ≤ 10000; Markdown без HTML }
+            number: { title, metric: MetricRef, decimals: 0..6 }
+            chart:  { title, metric: MetricRef, range: RangeName, stacked: bool }
+            status: { service_id }
+            MetricRef: { preset_id, vars: { source_id?, service_id?, instance? } }
+          type: object
+          additionalProperties: true
+        layout:
+          type: object
+          description: Размещение по breakpoint; отсутствующий breakpoint раскладывается автоматически
+          properties:
+            lg: { $ref: "#/components/schemas/Rect" }
+            md: { $ref: "#/components/schemas/Rect" }
+            sm: { $ref: "#/components/schemas/Rect" }
+    PageSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        slug: { type: string }
+        order: { type: integer }
+        revision: { type: integer }
+    PageInput:
+      type: object
+      required: [title, slug, theme, groups, widgets]
+      properties:
+        title: { type: string, maxLength: 100 }
+        slug: { type: string, pattern: "^[a-z0-9][a-z0-9-]{0,39}$" }
+        order: { type: integer }
+        theme: { $ref: "#/components/schemas/Theme" }
+        groups:
+          type: array
+          description: порядок массива — порядок групп
+          items: { $ref: "#/components/schemas/Group" }
+        widgets:
+          type: array
+          maxItems: 300
+          items: { $ref: "#/components/schemas/Widget" }
+    Page:
+      allOf:
+        - $ref: "#/components/schemas/PageInput"
+        - type: object
+          properties:
+            id: { type: string }
+            revision: { type: integer }
+            updated_at: { type: string, format: date-time }
+
+    ServiceInput:
+      type: object
+      required: [name, url]
+      properties:
+        name: { type: string, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        url: { type: string, description: http(s) URL для браузера }
+        icon: { type: string, description: '"builtin:<name>", "asset:<id>" или ""' }
+        tags: { type: array, items: { type: string } }
+        open_mode: { type: string, enum: [same_tab, new_tab] }
+        source_id: { type: [string, "null"], description: источник метрик, связанный с сервисом }
+    Service:
+      allOf:
+        - $ref: "#/components/schemas/ServiceInput"
+        - type: object
+          properties:
+            id: { type: string }
+            revision: { type: integer }
+            check_id: { type: [string, "null"] }
+            status: { $ref: "#/components/schemas/CheckStatus" }
+
+    ProbeState:
+      type: string
+      enum: [unknown, up, down, stale, disabled]
+    CheckInput:
+      type: object
+      required: [service_id, kind, target]
+      properties:
+        service_id: { type: string }
+        kind: { type: string, enum: [http, tcp] }
+        target: { type: string, description: http(s) URL или host:port }
+        expected_status: { type: string, default: "200-399", description: 'например "200-399,401"' }
+        interval_s: { type: integer, minimum: 5, maximum: 3600, default: 30 }
+        timeout_s: { type: integer, minimum: 1, default: 5, description: меньше interval_s }
+        enabled: { type: boolean, default: true }
+        ca_pem: { type: string, description: свой CA; проверка TLS не отключается }
+    CheckStatus:
+      type: object
+      properties:
+        state: { $ref: "#/components/schemas/ProbeState" }
+        pending: { type: [string, "null"], enum: [up, down, null], description: к какому состоянию идёт счётчик }
+        streak: { type: integer, description: подряд одинаковых результатов }
+        last_run: { type: [string, "null"], format: date-time }
+        last_success: { type: [string, "null"], format: date-time }
+        duration_ms: { type: [number, "null"] }
+        http_status: { type: [integer, "null"] }
+        error: { type: string }
+    Check:
+      allOf:
+        - $ref: "#/components/schemas/CheckInput"
+        - type: object
+          properties:
+            id: { type: string }
+            revision: { type: integer }
+            status: { $ref: "#/components/schemas/CheckStatus" }
+
+    SourceKind:
+      type: string
+      enum: [prometheus, node_exporter, cadvisor]
+    SourceInput:
+      type: object
+      required: [name, kind, url]
+      properties:
+        name: { type: string, maxLength: 100 }
+        kind: { $ref: "#/components/schemas/SourceKind" }
+        url: { type: string, description: 'полный URL метрик, например http://nas:9100/metrics' }
+        interval_s: { type: integer, minimum: 5, maximum: 3600, default: 15 }
+        timeout_s: { type: integer, minimum: 1, default: 5 }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+          description: ключи [a-zA-Z_][a-zA-Z0-9_]*, кроме source_id, job, instance, service_id и __*
+        secret_id: { type: [string, "null"] }
+        tls:
+          type: object
+          properties:
+            ca_pem: { type: string }
+            server_name: { type: string }
+        enabled: { type: boolean, default: true }
+    SourceStatus:
+      type: object
+      properties:
+        state: { type: string, enum: [pending, up, down, disabled] }
+        last_attempt: { type: [string, "null"], format: date-time }
+        last_success: { type: [string, "null"], format: date-time }
+        duration_ms: { type: [number, "null"] }
+        samples: { type: [integer, "null"] }
+        error: { type: string }
+    Source:
+      allOf:
+        - $ref: "#/components/schemas/SourceInput"
+        - type: object
+          properties:
+            id: { type: string }
+            system: { type: boolean, description: встроенный loopback-источник, не редактируется }
+            revision: { type: integer }
+            status: { $ref: "#/components/schemas/SourceStatus" }
+    SourceTestResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        http_status: { type: [integer, "null"] }
+        duration_ms: { type: number }
+        samples: { type: integer }
+        bytes: { type: integer }
+        error_kind: { type: string, enum: ["", dns, connect, tls, timeout, http_status, parse, too_large, too_many_samples, forbidden_address] }
+        error: { type: string }
+
+    SecretInput:
+      type: object
+      required: [name, kind]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [basic, bearer] }
+        username: { type: string }
+        password: { type: string }
+        token: { type: string }
+    Secret:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        mask: { type: string, example: "admin / ••••••" }
+        used_by: { type: array, items: { type: string } }
+
+    Threshold:
+      type: object
+      required: [value, color]
+      properties:
+        value: { type: number }
+        color: { type: string, enum: [ok, warn, crit] }
+    QueryPresetInput:
+      type: object
+      required: [title, expression]
+      properties:
+        title: { type: string }
+        expression: { type: string, description: 'MetricsQL; переменные $source_id, $service_id, $instance' }
+        unit: { type: string, enum: ["", percent, percent_unit, bytes, bytes_per_second, seconds, milliseconds, count, per_second, celsius, bool] }
+        legend: { type: string, description: 'шаблон вида "{{instance}} {{device}}"' }
+        thresholds: { type: array, items: { $ref: "#/components/schemas/Threshold" } }
+        min_step_s: { type: integer }
+    QueryPreset:
+      allOf:
+        - $ref: "#/components/schemas/QueryPresetInput"
+        - type: object
+          properties:
+            id: { type: string }
+            builtin: { type: boolean }
+            category: { type: string, enum: [homedeck, tsdb, node, container, probe, custom] }
+            vars: { type: array, items: { type: string }, description: какие переменные нужны }
+            revision: { type: integer }
+
+    RangeName:
+      type: string
+      enum: [1h, 6h, 24h, 7d, 30d]
+    InstantQuery:
+      type: object
+      properties:
+        query: { type: string, description: только если нет preset_id }
+        preset_id: { type: string }
+        vars: { type: object, additionalProperties: { type: string } }
+        time: { type: string, format: date-time }
+    RangeQuery:
+      type: object
+      required: [start, end]
+      properties:
+        query: { type: string }
+        preset_id: { type: string }
+        vars: { type: object, additionalProperties: { type: string } }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        points: { type: integer, minimum: 10, maximum: 1000, default: 300, description: ширина графика в точках }
+    Series:
+      type: object
+      properties:
+        labels: { type: object, additionalProperties: { type: string } }
+        name: { type: string, description: легенда по шаблону preset }
+        values:
+          type: array
+          description: значения по сетке start + i*step; null — нет данных
+          items: { type: [number, "null"] }
+    RangeResult:
+      type: object
+      properties:
+        start: { type: integer, description: unix seconds }
+        step: { type: integer, description: seconds }
+        unit: { type: string }
+        series: { type: array, items: { $ref: "#/components/schemas/Series" } }
+        warnings: { type: array, items: { type: string } }
+    InstantSample:
+      type: object
+      properties:
+        labels: { type: object, additionalProperties: { type: string } }
+        name: { type: string }
+        value: { type: [number, "null"] }
+        time: { type: integer, description: unix seconds, время измерения }
+    InstantResult:
+      type: object
+      properties:
+        unit: { type: string }
+        samples: { type: array, items: { $ref: "#/components/schemas/InstantSample" } }
+        warnings: { type: array, items: { type: string } }
+    WidgetData:
+      type: object
+      properties:
+        range: { $ref: "#/components/schemas/RangeResult" }
+        instant: { $ref: "#/components/schemas/InstantResult" }
+        status: { $ref: "#/components/schemas/CheckStatus" }
+        thresholds: { type: array, items: { $ref: "#/components/schemas/Threshold" } }
+
+    Status:
+      type: object
+      properties:
+        now: { type: string, format: date-time }
+        tsdb:
+          type: object
+          properties:
+            state: { type: string, enum: [starting, running, restarting, stopped, failed] }
+            restarts: { type: integer }
+            error: { type: string }
+            since: { type: string, format: date-time }
+        config:
+          type: object
+          properties:
+            desired_revision: { type: integer }
+            applied_revision: { type: integer }
+            error: { type: string }
+        disk:
+          type: object
+          properties:
+            total_bytes: { type: integer }
+            free_bytes: { type: integer }
+            metrics_bytes: { type: integer }
+            app_bytes: { type: integer }
+            level: { type: string, enum: [ok, warning, critical] }
+        services:
+          type: object
+          properties:
+            total: { type: integer }
+            up: { type: integer }
+            down: { type: integer }
+            stale: { type: integer }
+            unknown: { type: integer }
+            disabled: { type: integer }
+        sources:
+          type: object
+          properties:
+            total: { type: integer }
+            up: { type: integer }
+            down: { type: integer }
+            pending: { type: integer }
+            disabled: { type: integer }
+
+    Asset:
+      type: object
+      properties:
+        id: { type: string }
+        media_type: { type: string }
+        size: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+        checksum: { type: string }
+        url: { type: string, example: /assets/ast_x }
+        created_at: { type: string, format: date-time }
+
+    ImportPreview:
+      type: object
+      properties:
+        token: { type: string, description: действует 10 минут и только для текущей ревизии базы }
+        format: { type: string }
+        applied: { type: boolean }
+        revision_id: { type: [integer, "null"], description: ревизия-снимок до замены }
+        changes:
+          type: array
+          items:
+            type: object
+            properties:
+              entity: { type: string, enum: [page, service, check, source, preset, asset, settings] }
+              action: { type: string, enum: [create, replace, delete] }
+              name: { type: string }
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string, description: путь в исходном YAML }
+              message: { type: string }
+    ConfigRevision:
+      type: object
+      properties:
+        id: { type: integer }
+        schema_version: { type: integer }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+
+    PublicPage:
+      type: object
+      properties:
+        title: { type: string }
+        logo_asset_id: { type: [string, "null"] }
+        page: { $ref: "#/components/schemas/Page" }
+        services:
+          type: array
+          description: только сервисы, на которые ссылаются опубликованные виджеты
+          items: { $ref: "#/components/schemas/Service" }

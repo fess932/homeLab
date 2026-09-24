@@ -1,0 +1,11 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noUnusedLocals": true,
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["vite.config.ts", "src/**/*.test.ts"]
+}

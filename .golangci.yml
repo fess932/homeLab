@@ -1,0 +1,31 @@
+version: "2"
+linters:
+  enable:
+    - modernize
+    - errorlint
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*github.com/fess932/homeLab/internal/store.Store).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (io.ReadCloser).Close
+        - (*mime/multipart.Form).RemoveAll
+        - (net/http.ResponseWriter).Write
+        - fmt.Fprint
+        - fmt.Fprintf
+        - os.Remove
+        - os.RemoveAll
+        - fmt.Fprintln
+        - io.WriteString
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck, bodyclose]
