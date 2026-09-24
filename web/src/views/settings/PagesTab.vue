@@ -6,7 +6,7 @@ import { api } from '@/api'
 import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
 import { t } from '@/i18n'
 import { blankPage, slugify } from '@/lib/widgets'
-import { loadPages, store } from '@/stores/app'
+import { loadPages, reorderPages, store } from '@/stores/app'
 
 const router = useRouter()
 const error = ref<unknown>(null)
@@ -44,13 +44,7 @@ function move(i: number, delta: number) {
   const list = [...store.pages]
   if (j < 0 || j >= list.length) return
   ;[list[i], list[j]] = [list[j]!, list[i]!]
-  return run(async () => {
-    for (const [order, summary] of list.entries()) {
-      if (summary.order === order) continue
-      const full = await api.pages.get(summary.id)
-      await api.pages.save(full.id, { title: full.title, slug: full.slug, order, theme: full.theme, groups: full.groups, widgets: full.widgets }, full.revision)
-    }
-  })
+  return run(() => reorderPages(list))
 }
 
 function remove(id: string, name: string) {

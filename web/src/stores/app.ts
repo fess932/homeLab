@@ -50,6 +50,22 @@ export async function loadPages() {
   return store.pages
 }
 
+/** Сохраняет порядок страниц: order каждой — её индекс в списке. Возвращает id изменённых. */
+export async function reorderPages(list: PageSummary[]): Promise<string[]> {
+  const changed: string[] = []
+  try {
+    for (const [order, summary] of list.entries()) {
+      if (summary.order === order) continue
+      const full = await api.pages.get(summary.id)
+      await api.pages.save(full.id, { title: full.title, slug: full.slug, order, theme: full.theme, groups: full.groups, widgets: full.widgets }, full.revision)
+      changed.push(full.id)
+    }
+  } finally {
+    await loadPages()
+  }
+  return changed
+}
+
 export async function loadServices() {
   store.services = await api.services.list()
   store.loaded.services = true

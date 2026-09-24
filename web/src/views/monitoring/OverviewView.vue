@@ -8,7 +8,7 @@ import RangePicker from '@/components/ui/RangePicker.vue'
 import MetricPanel from '@/components/MetricPanel.vue'
 import { usePolling } from '@/composables/polling'
 import { t } from '@/i18n'
-import { formatAgo, formatBytes, formatValue } from '@/lib/format'
+import { formatAgo, formatBytes, formatNumber, formatValue } from '@/lib/format'
 import { chartLimiter } from '@/lib/queue'
 import { sourceLabel, sourceTone } from '@/lib/status'
 import type { TimeWindow } from '@/lib/time'
@@ -77,6 +77,10 @@ usePolling(async (signal) => {
           :text="t(`monitoring.tsdbStates.${status.tsdb.state}`)"
           :title="status.tsdb.error"
         />
+        <div v-if="status.tsdb.series !== null && status.tsdb.samples !== null" class="small">
+          {{ t('monitoring.tsdbSize', { series: formatNumber(status.tsdb.series, 0), samples: formatNumber(status.tsdb.samples, 0) }) }}
+        </div>
+        <div class="muted small">{{ t('monitoring.tsdbDisk', { size: formatBytes(status.disk.metrics_bytes) }) }}</div>
         <div v-if="status.tsdb.error" class="small err">{{ status.tsdb.error }}</div>
       </div>
       <div class="card tile">

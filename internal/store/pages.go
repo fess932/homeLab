@@ -50,7 +50,7 @@ func getPage(ctx context.Context, q queryer, idOrSlug string) (model.Page, error
 	}
 	p.Groups = groups
 	p.Widgets = []model.Widget{}
-	rows, err := q.QueryContext(ctx, "SELECT id, group_id, type, public, config, layout FROM widgets WHERE page_id = ? ORDER BY ord", p.ID)
+	rows, err := q.QueryContext(ctx, "SELECT id, group_id, type, config, layout FROM widgets WHERE page_id = ? ORDER BY ord", p.ID)
 	if err != nil {
 		return p, err
 	}
@@ -58,7 +58,7 @@ func getPage(ctx context.Context, q queryer, idOrSlug string) (model.Page, error
 	for rows.Next() {
 		var w model.Widget
 		var cfg, layout string
-		if err := rows.Scan(&w.ID, &w.GroupID, &w.Type, &w.Public, &cfg, &layout); err != nil {
+		if err := rows.Scan(&w.ID, &w.GroupID, &w.Type, &cfg, &layout); err != nil {
 			return p, err
 		}
 		w.Config = json.RawMessage(cfg)
@@ -161,8 +161,8 @@ func writePageContent(ctx context.Context, tx *sql.Tx, pageID string, in model.P
 		}
 	}
 	for i, w := range in.Widgets {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO widgets (id, page_id, group_id, type, public, config, layout, ord) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-			resolve(w.ID, "wgt"), pageID, resolve(w.GroupID, "grp"), w.Type, w.Public, string(w.Config), mustJSON(w.Layout), i); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO widgets (id, page_id, group_id, type, config, layout, ord) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			resolve(w.ID, "wgt"), pageID, resolve(w.GroupID, "grp"), w.Type, string(w.Config), mustJSON(w.Layout), i); err != nil {
 			return err
 		}
 	}
@@ -189,8 +189,8 @@ func (s *Store) DeletePage(ctx context.Context, id string) error {
 func (s *Store) Widget(ctx context.Context, id string) (model.Widget, string, error) {
 	var w model.Widget
 	var pageID, cfg, layout string
-	err := s.db.QueryRowContext(ctx, "SELECT id, page_id, group_id, type, public, config, layout FROM widgets WHERE id = ?", id).
-		Scan(&w.ID, &pageID, &w.GroupID, &w.Type, &w.Public, &cfg, &layout)
+	err := s.db.QueryRowContext(ctx, "SELECT id, page_id, group_id, type, config, layout FROM widgets WHERE id = ?", id).
+		Scan(&w.ID, &pageID, &w.GroupID, &w.Type, &cfg, &layout)
 	if err != nil {
 		return w, "", notFound(err)
 	}

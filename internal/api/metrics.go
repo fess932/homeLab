@@ -335,6 +335,9 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) error {
 			Restarts int         `json:"restarts"`
 			Error    string      `json:"error"`
 			Since    *model.Time `json:"since"`
+			// Series и Samples — размер базы; nil, пока VictoriaMetrics не ответила.
+			Series  *int64 `json:"series"`
+			Samples *int64 `json:"samples"`
 		} `json:"tsdb"`
 		Config struct {
 			Desired int64  `json:"desired_revision"`
@@ -354,6 +357,11 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) error {
 	out.Now = model.Time{Time: time.Now().UTC()}
 	st := s.Supervisor.Status()
 	out.TSDB.State, out.TSDB.Restarts, out.TSDB.Error, out.TSDB.Since = st.State, st.Restarts, st.Error, model.TimePtr(st.Since)
+	if st.State == tsdb.StateRunning {
+		if stats, err := s.TSDB.Stats(ctx); err == nil {
+			out.TSDB.Series, out.TSDB.Samples = &stats.Series, &stats.Samples
+		}
+	}
 	cs, err := s.Store.ConfigState(ctx)
 	if err != nil {
 		return err

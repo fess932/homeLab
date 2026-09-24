@@ -19,6 +19,7 @@ import {
   loadServices,
   loadSettings,
   presetsById,
+  reorderPages,
   servicesById,
   store,
 } from '@/stores/app'
@@ -162,6 +163,53 @@ function beforeUnload(e: BeforeUnloadEvent) {
 }
 window.addEventListener('beforeunload', beforeUnload)
 onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+// Перетаскивание табов страниц: порядок меняется на лету, сохраняется при отпускании.
+const dragId = ref<string | null>(null)
+let dropped = false
+
+function onDragStart(e: DragEvent, id: string) {
+  dragId.value = id
+  dropped = false
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', id)
+  }
+}
+
+function onDragOver(e: DragEvent, overId: string) {
+  if (!dragId.value) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  if (overId === dragId.value) return
+  const list = [...store.pages]
+  const from = list.findIndex((p) => p.id === dragId.value)
+  const to = list.findIndex((p) => p.id === overId)
+  if (from < 0 || to < 0) return
+  list.splice(to, 0, ...list.splice(from, 1))
+  store.pages = list
+}
+
+async function onDrop(e: DragEvent) {
+  if (!dragId.value) return
+  e.preventDefault()
+  dropped = true
+  dragId.value = null
+  error.value = null
+  try {
+    const changed = await reorderPages(store.pages)
+    // У сохранённой страницы сменилась ревизия: перечитываем открытую, чтобы следующая правка не дала конфликт.
+    if (page.value && changed.includes(page.value.id)) page.value = await api.pages.get(page.value.id)
+  } catch (e) {
+    error.value = e
+  }
+}
+
+function onDragEnd() {
+  if (dropped || !dragId.value) return
+  dragId.value = null
+  loadPages().catch((e) => (error.value = e))
+}
+
 onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
 </script>
 
@@ -174,7 +222,13 @@ onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
           :key="p.id"
           :to="`/p/${p.slug}`"
           class="tab"
+          :class="{ dragging: p.id === dragId }"
           :aria-current="p.id === activeId ? 'page' : undefined"
+          :draggable="!editing"
+          @dragstart="onDragStart($event, p.id)"
+          @dragover="onDragOver($event, p.id)"
+          @drop="onDrop"
+          @dragend="onDragEnd"
         >
           {{ p.title }}
         </RouterLink>
@@ -229,7 +283,7 @@ onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
       <PageBoard v-else :page="shown" :bp="bp" :editing="editing" />
     </template>
 
-    <PageSettingsForm v-if="showPageSettings && draft" :page="draft" @save="applyPageSettings" @close="showPageSettings = false" />
+    <PageSettingsForm v-if="showPageSettings && draft && page" :page="draft" :page-id="page.id" @save="applyPageSettings" @close="showPageSettings = false" />
   </div>
 </template>
 
@@ -259,6 +313,14 @@ onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
   font-size: 1.05rem;
   color: var(--text-muted);
   text-decoration: none;
+}
+
+.tab[draggable='true'] {
+  cursor: grab;
+}
+
+.tab.dragging {
+  opacity: 0.4;
 }
 
 .tab:hover {

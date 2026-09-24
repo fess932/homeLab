@@ -169,6 +169,7 @@ func parseDocument(data []byte) (Document, error) {
 	case ver < 1:
 		return Document{}, fmt.Errorf("schema_version %d не поддерживается", ver)
 	}
+	dropLegacyWidgetPublic(m)
 	raw, err := json.Marshal(generic)
 	if err != nil {
 		return Document{}, fmt.Errorf("документ содержит значения, не представимые в JSON: %w", err)
@@ -417,4 +418,19 @@ func actionOrder(a string) string {
 		return "1"
 	}
 	return "2"
+}
+
+// dropLegacyWidgetPublic убирает отметку «публичный» у виджетов из старых экспортов:
+// теперь публикуется страница целиком (settings.public_page).
+func dropLegacyWidgetPublic(doc map[string]any) {
+	pages, _ := doc["pages"].([]any)
+	for _, p := range pages {
+		page, _ := p.(map[string]any)
+		widgets, _ := page["widgets"].([]any)
+		for _, w := range widgets {
+			if wm, ok := w.(map[string]any); ok {
+				delete(wm, "public")
+			}
+		}
+	}
 }

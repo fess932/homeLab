@@ -18,7 +18,25 @@ const adopting = ref<string | null>(null)
 const addresses = ref<Record<string, string>>({})
 
 const loginOpen = ref(false)
-const userCode = ref('')
+// Код пользователя запоминается в браузере: при новом QR (старый устарел) вводить его заново не нужно.
+const USER_CODE_KEY = `homedeck.${props.driver.kind}.userCode`
+const userCode = ref(readUserCode())
+
+function readUserCode(): string {
+  try {
+    return localStorage.getItem(USER_CODE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function rememberUserCode(code: string) {
+  try {
+    localStorage.setItem(USER_CODE_KEY, code)
+  } catch {
+    /* хранилище браузера недоступно — код просто не запомнится */
+  }
+}
 const login = ref<DriverLogin | null>(null)
 const qr = ref('')
 const loginState = ref<'idle' | 'waiting' | 'done' | 'expired'>('idle')
@@ -40,6 +58,7 @@ async function startLogin() {
   error.value = null
   try {
     login.value = await api.drivers.login(props.driver.kind, { user_code: userCode.value.trim() })
+    rememberUserCode(userCode.value.trim())
     qr.value = await QRCode.toDataURL(login.value.qr, { margin: 1, width: 240 })
     loginState.value = 'waiting'
     stopPolling()

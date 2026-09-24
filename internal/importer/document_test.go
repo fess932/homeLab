@@ -33,3 +33,11 @@ func TestParseDocument(t *testing.T) {
 		t.Fatalf("минимальный документ: %+v %v", doc, err)
 	}
 }
+
+func TestParseDocumentLegacyWidgetPublic(t *testing.T) {
+	doc, err := parseDocument([]byte("schema_version: 2\nkind: homedeck\nsettings:\n  title: Дом\npages:\n" +
+		"  - id: pg_home\n    title: Дом\n    slug: home\n    widgets:\n      - id: wgt_a\n        group_id: grp_a\n        type: link\n        public: true\n"))
+	if err != nil || len(doc.Pages) != 1 || len(doc.Pages[0].Widgets) != 1 {
+		t.Fatalf("старый экспорт с public у виджета: %+v %v", doc, err)
+	}
+}

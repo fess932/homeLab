@@ -107,7 +107,6 @@ export interface Widget<T extends WidgetType = WidgetType> {
   id: string
   group_id: string
   type: T
-  public?: boolean
   config: WidgetConfigMap[T]
   layout: Partial<Record<Breakpoint, Rect>>
 }
@@ -437,7 +436,7 @@ export type DiskLevel = 'ok' | 'warning' | 'critical'
 
 export interface Status {
   now: string
-  tsdb: { state: TsdbState; restarts: number; error: string; since: string }
+  tsdb: { state: TsdbState; restarts: number; error: string; since: string; series: number | null; samples: number | null }
   config: { desired_revision: number; applied_revision: number; error: string }
   disk: {
     total_bytes: number

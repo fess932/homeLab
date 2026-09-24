@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { api, assetUrl, type PublicPage } from '@/api'
+import { api, ApiError, assetUrl, type PublicPage } from '@/api'
 import PageBoard from '@/components/PageBoard.vue'
 import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
 import { createContext, provideWidgetContext } from '@/components/widgets/context'
@@ -28,6 +28,7 @@ usePolling(async () => {
   }
 })
 
+const off = computed(() => error.value instanceof ApiError && error.value.code === 'public_off')
 const logo = computed(() => assetUrl(data.value?.logo_asset_id))
 </script>
 
@@ -39,7 +40,11 @@ const logo = computed(() => assetUrl(data.value?.logo_asset_id))
       <span class="spacer" />
       <RouterLink to="/login" class="btn small">{{ t('login.submit') }}</RouterLink>
     </header>
-    <ApiErrorAlert v-if="loaded && !data" :error="error" />
+    <div v-if="loaded && !data && off" class="card empty">
+      <h2>{{ t('public.offTitle') }}</h2>
+      <p class="muted">{{ t('public.offHint') }}</p>
+    </div>
+    <ApiErrorAlert v-else-if="loaded && !data" :error="error" />
     <p v-if="!loaded" class="muted">{{ t('app.loading') }}</p>
     <main v-if="data">
       <PageBoard :page="data.page" :bp="bp" />
@@ -53,6 +58,12 @@ const logo = computed(() => assetUrl(data.value?.logo_asset_id))
   align-items: center;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.empty {
+  max-width: 560px;
+  margin: 48px auto;
+  text-align: center;
 }
 
 .pub-head h1 {

@@ -148,7 +148,6 @@ function submit() {
         <label class="field check"><input v-model="cfg.stacked" type="checkbox" /> {{ t('widgets.stacked') }}</label>
       </template>
 
-      <label class="field check"><input v-model="draft.public" type="checkbox" /> {{ t('editor.public') }}</label>
     </form>
     <template #footer>
       <button type="button" class="btn" @click="emit('close')">{{ t('app.cancel') }}</button>

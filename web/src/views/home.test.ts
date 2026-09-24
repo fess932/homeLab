@@ -50,6 +50,7 @@ const page: Page = {
 type Call = { url: string; method: string; body: unknown; headers: Record<string, string> }
 let calls: Call[] = []
 let putStatus = 200
+let pageList: { id: string; title: string; slug: string; order: number; revision: number }[] = []
 
 function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -58,6 +59,7 @@ function respond(body: unknown, status = 200) {
 beforeEach(() => {
   calls = []
   putStatus = 200
+  pageList = [{ id: page.id, title: page.title, slug: page.slug, order: 0, revision: page.revision }]
   resetStore()
   store.session = { user: { id: 'u1', username: 'admin' }, csrf_token: 'csrf-x' }
   api.http.setCsrf('csrf-x')
@@ -80,8 +82,11 @@ beforeEach(() => {
         body: typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
         headers: (init.headers ?? {}) as Record<string, string>,
       })
-      if (url === '/api/v1/pages' && method === 'GET') return respond([{ id: page.id, title: page.title, slug: page.slug, order: 0, revision: page.revision }])
-      if (url.startsWith('/api/v1/pages/') && method === 'GET') return respond(page)
+      if (url === '/api/v1/pages' && method === 'GET') return respond(pageList)
+      if (url.startsWith('/api/v1/pages/') && method === 'GET') {
+        const other = pageList.find((p) => p.id !== page.id && url.endsWith(`/${p.id}`))
+        return respond(other ? { ...page, ...other } : page)
+      }
       if (url.startsWith('/api/v1/pages/') && method === 'PUT') {
         if (putStatus !== 200) return respond({ code: 'conflict', message: 'conflict', request_id: 'r1' }, putStatus)
         return respond({ ...page, ...(JSON.parse(init.body as string) as object), revision: page.revision + 1 })
@@ -115,6 +120,31 @@ async function mountHome() {
 }
 
 describe('HomeView', () => {
+  it('reorders page tabs by drag and drop', async () => {
+    pageList.push({ id: 'pg_two', title: 'Дом 2', slug: 'home-2', order: 1, revision: 1 })
+    const w = await mountHome()
+    const tabs = () => w.findAll('a.tab')
+    expect(tabs().map((t) => t.text())).toEqual(['Дом', 'Дом 2'])
+    expect(tabs()[1]!.attributes('draggable')).toBe('true')
+    // После сохранения сервер отдаёт новый порядок.
+    pageList = [
+      { ...pageList[1]!, order: 0 },
+      { ...pageList[0]!, order: 1 },
+    ]
+    await tabs()[1]!.trigger('dragstart')
+    await tabs()[0]!.trigger('dragover')
+    expect(tabs().map((t) => t.text())).toEqual(['Дом 2', 'Дом'])
+    await tabs()[0]!.trigger('drop')
+    await flushPromises()
+    const saved = calls.filter((c) => c.method === 'PUT').map((c) => [c.url, (c.body as { order: number }).order])
+    expect(saved).toEqual([
+      ['/api/v1/pages/pg_two', 0],
+      ['/api/v1/pages/pg_home', 1],
+    ])
+    expect(tabs().map((t) => t.text())).toEqual(['Дом 2', 'Дом'])
+    w.unmount()
+  })
+
   it('renders start page with service card, status text and note', async () => {
     const w = await mountHome()
     expect(w.text()).toContain('Хранилище')

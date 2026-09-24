@@ -167,34 +167,10 @@ func (s *Server) publicPageData(r *http.Request) (model.Page, error) {
 		return model.Page{}, err
 	}
 	if st.PublicPageID == nil {
-		return model.Page{}, model.ErrNotFound
+		return model.Page{}, &Error{Status: http.StatusNotFound, Code: "public_off", Message: "публичная страница не включена"}
 	}
-	p, err := s.Store.GetPage(r.Context(), *st.PublicPageID)
-	if err != nil {
-		return p, err
-	}
-	var widgets []model.Widget
-	groups := map[string]bool{}
-	for _, wg := range p.Widgets {
-		if wg.Public {
-			widgets = append(widgets, wg)
-			groups[wg.GroupID] = true
-		}
-	}
-	var gs []model.Group
-	for _, g := range p.Groups {
-		if groups[g.ID] {
-			gs = append(gs, g)
-		}
-	}
-	p.Widgets, p.Groups = widgets, gs
-	if p.Widgets == nil {
-		p.Widgets = []model.Widget{}
-	}
-	if p.Groups == nil {
-		p.Groups = []model.Group{}
-	}
-	return p, nil
+	// Публикуется страница целиком: все её группы и виджеты.
+	return s.Store.GetPage(r.Context(), *st.PublicPageID)
 }
 
 func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) error {

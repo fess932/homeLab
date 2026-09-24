@@ -67,7 +67,6 @@ type Widget struct {
 	ID      string          `json:"id"`
 	GroupID string          `json:"group_id"`
 	Type    string          `json:"type"`
-	Public  bool            `json:"public"`
 	Config  json.RawMessage `json:"config"`
 	Layout  Layout          `json:"layout"`
 }

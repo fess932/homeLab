@@ -477,3 +477,55 @@ func (c *Client) Version(ctx context.Context) string {
 	}
 	return ""
 }
+
+// Stats — размер базы: число рядов и сохранённых точек.
+type Stats struct {
+	Series  int64
+	Samples int64
+}
+
+var rowsRe = regexp.MustCompile(`(?m)^vm_rows\{type="storage/[^"]*"\} (\d+)`)
+
+// Stats читает число рядов (/api/v1/series/count) и точек (vm_rows хранилища из /metrics, без индекса).
+func (c *Client) Stats(ctx context.Context) (Stats, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	var st Stats
+	var count struct {
+		Data []int64 `json:"data"`
+	}
+	b, err := c.fetch(ctx, "/api/v1/series/count")
+	if err != nil {
+		return st, err
+	}
+	if err := json.Unmarshal(b, &count); err != nil {
+		return st, err
+	}
+	if len(count.Data) > 0 {
+		st.Series = count.Data[0]
+	}
+	if b, err = c.fetch(ctx, "/metrics"); err != nil {
+		return st, err
+	}
+	for _, m := range rowsRe.FindAllSubmatch(b, -1) {
+		n, _ := strconv.ParseInt(string(m[1]), 10, 64)
+		st.Samples += n
+	}
+	return st, nil
+}
+
+func (c *Client) fetch(ctx context.Context, path string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: HTTP %d", path, resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+}

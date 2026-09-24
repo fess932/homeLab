@@ -52,7 +52,6 @@ function addWidget(groupId: string) {
     id: newId(),
     group_id: groupId,
     type,
-    public: false,
     config: defaultConfig(type),
     layout: { [props.bp]: spot },
   }

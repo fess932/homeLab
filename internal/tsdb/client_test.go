@@ -291,3 +291,19 @@ func TestResponseTooLarge(t *testing.T) {
 		t.Fatalf("ожидался payload_too_large: %v", err)
 	}
 }
+
+func TestStats(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/series/count":
+			fmt.Fprint(w, `{"status":"success","data":[916]}`)
+		case "/metrics":
+			fmt.Fprint(w, "vm_rows{type=\"storage/inmemory\"} 915\nvm_rows{type=\"storage/small\"} 100\nvm_rows{type=\"indexdb/inmemory\"} 7954\n")
+		}
+	}))
+	defer srv.Close()
+	st, err := NewClient(strings.TrimPrefix(srv.URL, "http://")).Stats(context.Background())
+	if err != nil || st.Series != 916 || st.Samples != 1015 {
+		t.Fatalf("Stats: %+v %v", st, err)
+	}
+}

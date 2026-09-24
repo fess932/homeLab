@@ -320,12 +320,13 @@ func TestPublicPage(t *testing.T) {
 	h.setup()
 	src := h.createSource("nas", nil)
 	pub := h.createService("public", &src.ID)
-	priv := h.createService("private", nil)
+	second := h.createService("second", nil)
+	h.createService("private", nil)
 	in := map[string]any{"title": "Дом", "slug": "home", "theme": map[string]any{},
 		"groups": []any{map[string]any{"id": "new_g1", "title": "A"}, map[string]any{"id": "new_g2", "title": "B"}},
 		"widgets": []any{
-			map[string]any{"id": "new_1", "group_id": "new_g1", "type": "link", "public": true, "config": map[string]any{"service_id": pub.ID}, "layout": map[string]any{}},
-			map[string]any{"id": "new_2", "group_id": "new_g2", "type": "link", "public": false, "config": map[string]any{"service_id": priv.ID}, "layout": map[string]any{}},
+			map[string]any{"id": "new_1", "group_id": "new_g1", "type": "link", "config": map[string]any{"service_id": pub.ID}, "layout": map[string]any{}},
+			map[string]any{"id": "new_2", "group_id": "new_g2", "type": "link", "config": map[string]any{"service_id": second.ID}, "layout": map[string]any{}},
 		}}
 	r := h.req("POST", "/api/v1/pages", in, nil)
 	h.expect(r, 201, "")
@@ -333,7 +334,7 @@ func TestPublicPage(t *testing.T) {
 	r.json(&p)
 
 	anon := &harness{t: t, srv: h.srv, client: &http.Client{}}
-	h.expect(anon.req("GET", "/api/v1/public", nil, nil), 404, "not_found")
+	h.expect(anon.req("GET", "/api/v1/public", nil, nil), 404, "public_off")
 
 	var set model.Settings
 	r = h.req("GET", "/api/v1/settings", nil, nil)
@@ -349,18 +350,19 @@ func TestPublicPage(t *testing.T) {
 	r = anon.req("GET", "/api/v1/public", nil, nil)
 	h.expect(r, 200, "")
 	r.json(&view)
-	// Непубличные виджеты, пустые группы и несвязанные сервисы не раскрываются анониму.
-	if len(view.Page.Widgets) != 1 || view.Page.Widgets[0].ID != p.Widgets[0].ID || len(view.Page.Groups) != 1 {
+	// Страница публикуется целиком; сервисы вне её виджетов не раскрываются анониму.
+	if len(view.Page.Widgets) != 2 || len(view.Page.Groups) != 2 {
 		t.Fatalf("публичная страница: %s", r.body)
 	}
-	if len(view.Services) != 1 || view.Services[0].ID != pub.ID || view.Services[0].SourceID != nil {
+	if len(view.Services) != 2 || view.Services[0].SourceID != nil || view.Services[1].SourceID != nil {
 		t.Fatalf("сервисы: %s", r.body)
 	}
 	if strings.Contains(string(r.body), "private") {
 		t.Fatal("приватный сервис в ответе")
 	}
-	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 404, "not_found")
 	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[0].ID+"/data", nil, nil), 200, "")
+	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 200, "")
+	h.expect(anon.req("GET", "/api/v1/public/widgets/wgt_missing/data", nil, nil), 404, "not_found")
 	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[0].ID+"/data?range=2y", nil, nil), 422, "validation")
 	// Анонимный клиент не может выполнить произвольный запрос.
 	h.expect(anon.req("POST", "/api/v1/metrics/query", map[string]any{"query": "up"}, nil), 401, "unauthorized")
@@ -476,7 +478,7 @@ func TestImportRoundTrip(t *testing.T) {
 	h.expect(h.req("POST", "/api/v1/presets", map[string]any{"title": "Мой", "expression": `up{source_id="$source_id"}`, "unit": "bool"}, nil), 201, "")
 	h.expect(h.req("POST", "/api/v1/pages", map[string]any{"title": "Дом", "slug": "home", "theme": map[string]any{"mode": "dark"},
 		"groups":  []any{map[string]any{"id": "new_g", "title": "G"}},
-		"widgets": []any{map[string]any{"id": "new_w", "group_id": "new_g", "type": "chart", "public": true, "config": map[string]any{"metric": map[string]any{"preset_id": "tpl_node_cpu", "vars": map[string]string{"source_id": src.ID}}, "range": "24h"}, "layout": map[string]any{"lg": map[string]int{"x": 0, "y": 0, "w": 6, "h": 2}}}},
+		"widgets": []any{map[string]any{"id": "new_w", "group_id": "new_g", "type": "chart", "config": map[string]any{"metric": map[string]any{"preset_id": "tpl_node_cpu", "vars": map[string]string{"source_id": src.ID}}, "range": "24h"}, "layout": map[string]any{"lg": map[string]int{"x": 0, "y": 0, "w": 6, "h": 2}}}},
 	}, nil), 201, "")
 
 	export := h.req("GET", "/api/v1/export", nil, nil)
