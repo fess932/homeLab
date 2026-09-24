@@ -73,10 +73,12 @@ function guard(e: MouseEvent) {
       <div class="head">
         <span class="name">{{ service.name }}</span>
         <span v-if="newTab" class="sr-only">({{ t('widgets.openNewTab') }})</span>
+      </div>
+      <div v-if="showStatus || (cfg.show_latency && service.check_id)" class="state">
+        <StatusBadge v-if="showStatus" class="led" :status="service.status" :hint="basis || undefined" compact />
         <span v-if="cfg.show_latency && service.check_id" class="latency" :title="t('widgets.latency')">
           {{ isValue(latency) ? formatValue(latency, 'milliseconds') : t('units.noData') }}
         </span>
-        <StatusBadge v-if="showStatus" class="led" :status="service.status" :hint="basis || undefined" compact />
       </div>
       <div v-if="service.description || service.tags.length" class="sub">
         <p class="desc muted small">{{ service.description }}</p>
@@ -130,6 +132,13 @@ a.w-link:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+/* Статус и задержка — строкой под названием, чтобы название занимало всю ширину. */
+.state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .latency {
