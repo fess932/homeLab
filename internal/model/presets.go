@@ -48,7 +48,7 @@ var builtinPresets = []Preset{
 	builtin("tpl_device_up", "device", "Устройство: на связи", `homedeck_device_up{device_id="$device_id"}`, "bool", ""),
 	builtin("tpl_device_temperature", "device", "Устройство: температура", deviceValue("temperature"), "celsius", ""),
 	builtin("tpl_device_humidity", "device", "Устройство: влажность", deviceValue("humidity"), "percent", ""),
-	builtin("tpl_device_co2", "device", "Устройство: CO₂", deviceValue("co2"), "ppm", "", Threshold{Value: 1000, Color: "warn"}, Threshold{Value: 1500, Color: "crit"}),
+	builtin("tpl_device_co2", "device", "Устройство: CO₂", deviceValue("co2"), "ppm", "", Threshold{Value: 1000, Color: "warn"}, Threshold{Value: 2000, Color: "crit"}),
 	builtin("tpl_device_pm25", "device", "Устройство: PM2.5", deviceValue("pm25"), "ugm3", "", Threshold{Value: 35, Color: "warn"}, Threshold{Value: 75, Color: "crit"}),
 	builtin("tpl_device_pm10", "device", "Устройство: PM10", deviceValue("pm10"), "ugm3", "", Threshold{Value: 50, Color: "warn"}, Threshold{Value: 100, Color: "crit"}),
 	builtin("tpl_device_formaldehyde", "device", "Устройство: формальдегид", deviceValue("formaldehyde"), "mgm3", "", Threshold{Value: 0.08, Color: "warn"}, Threshold{Value: 0.1, Color: "crit"}),
