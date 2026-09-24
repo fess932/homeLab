@@ -214,7 +214,6 @@ func parseHomer(data, zipData []byte, cur store.Snapshot) (homerPlan, []Warning,
 	}
 	snap.Pages = []model.Page{page}
 	snap.Settings.StartPageID = &page.ID
-	snap.Settings.PublicPageID = nil
 	plan.snap = snap
 	return plan, warns, nil
 }

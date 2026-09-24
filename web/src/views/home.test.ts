@@ -91,7 +91,7 @@ beforeEach(() => {
         if (putStatus !== 200) return respond({ code: 'conflict', message: 'conflict', request_id: 'r1' }, putStatus)
         return respond({ ...page, ...(JSON.parse(init.body as string) as object), revision: page.revision + 1 })
       }
-      if (url === '/api/v1/settings') return respond({ title: 'Мой дом', logo_asset_id: null, start_page_id: 'pg_home', public_page_id: null, revision: 1 })
+      if (url === '/api/v1/settings') return respond({ title: 'Мой дом', logo_asset_id: null, start_page_id: 'pg_home', revision: 1 })
       if (url === '/api/v1/services') return respond([service])
       if (url === '/api/v1/checks')
         return respond([{ id: 'chk_1', service_id: 'svc_nas', kind: 'http', target: 'http://nas.lan:5000/health', expected_status: '200-399', interval_s: 30, timeout_s: 5, enabled: true, ca_pem: '', revision: 1 }])

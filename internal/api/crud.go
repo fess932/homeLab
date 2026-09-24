@@ -80,6 +80,7 @@ func (s *Server) createPage(w http.ResponseWriter, r *http.Request) error {
 	if err := in.Validate(); err != nil {
 		return err
 	}
+	s.resolvePageIcons(r.Context(), &in)
 	p, err := s.Store.CreatePage(r.Context(), in)
 	if err != nil {
 		return err
@@ -106,6 +107,7 @@ func (s *Server) updatePage(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	s.resolvePageIcons(r.Context(), &in)
 	p, err := s.Store.UpdatePage(r.Context(), cur.ID, rev, in)
 	if err != nil {
 		return err
@@ -163,6 +165,7 @@ func (s *Server) createService(w http.ResponseWriter, r *http.Request) error {
 	if err := in.Validate(); err != nil {
 		return err
 	}
+	in.Icon = s.resolveIcon(r.Context(), in.Icon, in.URL)
 	sv, err := s.Store.CreateService(r.Context(), in)
 	if err != nil {
 		return err
@@ -185,6 +188,7 @@ func (s *Server) updateService(w http.ResponseWriter, r *http.Request) error {
 	if err := in.Validate(); err != nil {
 		return err
 	}
+	in.Icon = s.resolveIcon(r.Context(), in.Icon, in.URL)
 	sv, err := s.Store.UpdateService(r.Context(), r.PathValue("id"), rev, in)
 	if err != nil {
 		return err

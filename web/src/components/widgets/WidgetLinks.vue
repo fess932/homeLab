@@ -28,7 +28,7 @@ function guard(e: MouseEvent) {
           :draggable="false"
           @click="guard"
         >
-          <ServiceIcon :icon="it.service.icon" :url="it.service.url" :size="20" />
+          <ServiceIcon :icon="it.service.icon" :size="20" />
           <span class="name">{{ it.service.name }}</span>
           <StatusBadge v-if="it.service.check_id" :status="it.service.status" compact />
         </a>

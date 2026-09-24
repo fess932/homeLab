@@ -155,9 +155,9 @@ export function createApi(http: Http) {
     revisions: () => r<ConfigRevision[]>('/api/v1/revisions'),
 
     public: {
-      page: () => r<PublicPage>('/api/v1/public', { anonymous: true }),
-      widgetData: (id: string, params: { range?: RangeName; points?: number }, signal?: AbortSignal) =>
-        r<WidgetData>(`/api/v1/public/widgets/${enc(id)}/data${qs(params)}`, { signal, anonymous: true }),
+      page: (slug: string) => r<PublicPage>(`/api/v1/public/${enc(slug)}`, { anonymous: true }),
+      widgetData: (slug: string, id: string, params: { range?: RangeName; points?: number }, signal?: AbortSignal) =>
+        r<WidgetData>(`/api/v1/public/${enc(slug)}/widgets/${enc(id)}/data${qs(params)}`, { signal, anonymous: true }),
     },
   }
 }

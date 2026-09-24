@@ -14,7 +14,7 @@ export const router = createRouter({
   routes: [
     { path: '/setup', component: () => import('@/views/SetupView.vue'), meta: { anonymous: true, bare: true } },
     { path: '/login', component: () => import('@/views/LoginView.vue'), meta: { anonymous: true, bare: true } },
-    { path: '/public', component: () => import('@/views/PublicView.vue'), meta: { anonymous: true, bare: true } },
+    { path: '/public/:slug?', component: () => import('@/views/PublicView.vue'), meta: { anonymous: true, bare: true } },
     { path: '/', component: () => import('@/views/HomeView.vue') },
     { path: '/p/:slug', component: () => import('@/views/HomeView.vue') },
     { path: '/monitoring', component: () => import('@/views/monitoring/OverviewView.vue') },

@@ -75,6 +75,8 @@ async function createCustomLink(): Promise<boolean> {
   errors.value = {}
   const c = typed<'link'>()
   if (!custom.value.ping) {
+    // Новый адрес — сервер заново заберёт иконку сайта при сохранении страницы.
+    if (url !== c.url || !c.icon) c.icon = 'favicon'
     c.url = url
     c.title = custom.value.name.trim()
     return true
@@ -93,6 +95,7 @@ async function createCustomLink(): Promise<boolean> {
   c.show_status = true
   delete c.url
   delete c.title
+  delete c.icon
   await Promise.all([loadServices(), loadChecks()])
   return true
 }
@@ -113,6 +116,7 @@ async function submit() {
   } else if (draft.value.type === 'link') {
     delete typed<'link'>().url
     delete typed<'link'>().title
+    delete typed<'link'>().icon
   }
   emit('save', draft.value)
 }

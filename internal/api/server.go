@@ -20,6 +20,7 @@ import (
 
 	"github.com/VictoriaMetrics/metrics"
 	"github.com/fess932/homeLab/internal/assets"
+	"github.com/fess932/homeLab/internal/favicon"
 	"github.com/fess932/homeLab/internal/auth"
 	"github.com/fess932/homeLab/internal/config"
 	"github.com/fess932/homeLab/internal/devices"
@@ -48,6 +49,7 @@ type Deps struct {
 	Watcher    *tsdb.Watcher
 	TSDB       *tsdb.Client
 	Assets     *assets.Service
+	Favicons   *favicon.Finder
 	Importer   *importer.Service
 	UI         fs.FS
 	Log        *slog.Logger
@@ -168,8 +170,8 @@ func (s *Server) routes() {
 	m.Handle("GET /api/v1/export", s.authed(s.export))
 	m.Handle("GET /api/v1/revisions", s.authed(s.listRevisions))
 
-	m.Handle("GET /api/v1/public", s.public(s.publicPage))
-	m.Handle("GET /api/v1/public/widgets/{id}/data", s.public(s.publicWidgetData))
+	m.Handle("GET /api/v1/public/{slug}", s.public(s.publicPage))
+	m.Handle("GET /api/v1/public/{slug}/widgets/{id}/data", s.public(s.publicWidgetData))
 
 	m.Handle("/api/", s.public(func(w http.ResponseWriter, r *http.Request) error {
 		return &Error{Status: http.StatusNotFound, Code: "not_found", Message: "маршрут не найден"}
@@ -196,7 +198,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("Referrer-Policy", "same-origin")
 	h.Set("Cross-Origin-Opener-Policy", "same-origin")
-	h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+	h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w}
 	s.mux.ServeHTTP(sw, r)

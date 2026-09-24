@@ -53,7 +53,7 @@ const dirty = computed(() => editing.value && JSON.stringify(draft.value) !== JS
 
 function strip(p: Page | null): PageInput | null {
   if (!p) return null
-  return { title: p.title, slug: p.slug, order: p.order, theme: p.theme, groups: p.groups, widgets: p.widgets }
+  return { title: p.title, slug: p.slug, order: p.order, public: p.public ?? false, theme: p.theme, groups: p.groups, widgets: p.widgets }
 }
 
 async function resolveTarget(): Promise<string | null> {
@@ -137,7 +137,7 @@ async function createPage() {
   }
 }
 
-function applyPageSettings(p: Pick<PageInput, 'title' | 'slug' | 'theme'>) {
+function applyPageSettings(p: Pick<PageInput, 'title' | 'slug' | 'theme' | 'public'>) {
   if (draft.value) Object.assign(draft.value, p)
   showPageSettings.value = false
 }
@@ -283,7 +283,7 @@ onBeforeRouteLeave(() => !dirty.value || confirm(t('editor.unsaved')))
       <PageBoard v-else :page="shown" :bp="bp" :editing="editing" />
     </template>
 
-    <PageSettingsForm v-if="showPageSettings && draft && page" :page="draft" :page-id="page.id" @save="applyPageSettings" @close="showPageSettings = false" />
+    <PageSettingsForm v-if="showPageSettings && draft" :page="draft" @save="applyPageSettings" @close="showPageSettings = false" />
   </div>
 </template>
 

@@ -47,7 +47,7 @@ function guard(e: MouseEvent) {
     :draggable="false"
     @click="guard"
   >
-    <ServiceIcon icon="favicon" :url="cfg.url" :size="28" />
+    <ServiceIcon :icon="cfg.icon" :size="28" />
     <div class="body">
       <div class="head">
         <span class="name">{{ plainTitle }}</span>
@@ -68,7 +68,7 @@ function guard(e: MouseEvent) {
     :draggable="false"
     @click="guard"
   >
-    <ServiceIcon :icon="service.icon" :url="service.url" :size="28" />
+    <ServiceIcon :icon="service.icon" :size="28" />
     <div class="body">
       <div class="head">
         <span class="name">{{ service.name }}</span>

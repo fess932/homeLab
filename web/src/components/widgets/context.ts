@@ -60,6 +60,7 @@ export function createContext(
   services: () => Map<string, Service>,
   presets: () => Map<string, QueryPreset>,
   checks: () => Map<string, Check> = () => new Map(),
+  publicSlug: () => string = () => '',
 ): WidgetContext {
   const preset = (id: string) => presets().get(id)
   const currentMode = typeof mode === 'function' ? mode : () => mode
@@ -72,7 +73,7 @@ export function createContext(
     check: (id) => (id ? checks().get(id) : undefined),
     load(w, req, signal) {
       const mode = currentMode()
-      if (mode === 'public') return api.public.widgetData(w.id, req, signal)
+      if (mode === 'public') return api.public.widgetData(publicSlug(), w.id, req, signal)
       if (mode === 'view' && !w.id.startsWith('new_')) return api.widgetData(w.id, req, signal)
       return loadDirect(w, req, preset, signal)
     },

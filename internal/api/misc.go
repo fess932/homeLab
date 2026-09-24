@@ -159,18 +159,18 @@ type publicView struct {
 	LogoAssetID *string         `json:"logo_asset_id"`
 	Page        model.Page      `json:"page"`
 	Services    []model.Service `json:"services"`
+	// Presets — шаблоны запросов виджетов страницы: подписи, единицы и пороги, без выражений.
+	Presets []model.Preset `json:"presets"`
 }
 
 func (s *Server) publicPageData(r *http.Request) (model.Page, error) {
-	st, err := s.Store.GetSettings(r.Context())
-	if err != nil {
-		return model.Page{}, err
+	// Публикуется страница целиком: все её группы и виджеты. Закрытая страница
+	// неотличима от несуществующей.
+	p, err := s.Store.GetPage(r.Context(), r.PathValue("slug"))
+	if err == nil && !p.Public {
+		err = model.ErrNotFound
 	}
-	if st.PublicPageID == nil {
-		return model.Page{}, &Error{Status: http.StatusNotFound, Code: "public_off", Message: "публичная страница не включена"}
-	}
-	// Публикуется страница целиком: все её группы и виджеты.
-	return s.Store.GetPage(r.Context(), *st.PublicPageID)
+	return p, err
 }
 
 func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) error {
@@ -196,11 +196,28 @@ func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) error {
 	for _, sv := range all {
 		if ids[sv.ID] {
 			s.withStatus(&sv)
+			// Аноним видит состояние, но не текст ошибки: в нём адреса и порты домашней сети.
+			if sv.Status != nil {
+				sv.Status.Error = ""
+			}
 			sv.SourceID = nil
 			services = append(services, sv)
 		}
 	}
-	writeJSON(w, http.StatusOK, publicView{Title: st.Title, LogoAssetID: st.LogoAssetID, Page: p, Services: services})
+	presets := []model.Preset{}
+	seen := map[string]bool{}
+	for _, wg := range p.Widgets {
+		m := wg.MetricRef()
+		if m == nil || m.PresetID == "" || seen[m.PresetID] {
+			continue
+		}
+		seen[m.PresetID] = true
+		if pr, err := s.preset(r, m.PresetID); err == nil {
+			pr.Expression = ""
+			presets = append(presets, pr)
+		}
+	}
+	writeJSON(w, http.StatusOK, publicView{Title: st.Title, LogoAssetID: st.LogoAssetID, Page: p, Services: services, Presets: presets})
 	return nil
 }
 

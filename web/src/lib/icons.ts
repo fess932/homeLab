@@ -63,16 +63,6 @@ export const builtinIcons: Record<string, LucideIcon> = {
 
 export type ParsedIcon = { kind: 'builtin'; name: string } | { kind: 'asset'; id: string } | { kind: 'favicon' } | { kind: 'none' }
 
-/** Где браузер ищет иконку сайта: по очереди, до первой загрузившейся. */
-export function faviconCandidates(url: string | undefined | null): string[] {
-  try {
-    const { origin } = new URL(url ?? '')
-    return [`${origin}/favicon.ico`, `${origin}/apple-touch-icon.png`, `${origin}/favicon.png`]
-  } catch {
-    return []
-  }
-}
-
 export function parseIcon(icon: string | undefined | null): ParsedIcon {
   if (!icon) return { kind: 'none' }
   if (icon.startsWith('builtin:')) return { kind: 'builtin', name: icon.slice(8) }

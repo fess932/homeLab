@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Store) ListPages(ctx context.Context) ([]model.PageSummary, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, title, slug, ord, revision FROM pages ORDER BY ord, title")
+	rows, err := s.db.QueryContext(ctx, "SELECT id, title, slug, ord, public, revision FROM pages ORDER BY ord, title")
 	if err != nil {
 		return nil, err
 	}
@@ -18,7 +18,7 @@ func (s *Store) ListPages(ctx context.Context) ([]model.PageSummary, error) {
 	out := []model.PageSummary{}
 	for rows.Next() {
 		var p model.PageSummary
-		if err := rows.Scan(&p.ID, &p.Title, &p.Slug, &p.Order, &p.Revision); err != nil {
+		if err := rows.Scan(&p.ID, &p.Title, &p.Slug, &p.Order, &p.Public, &p.Revision); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -34,8 +34,8 @@ func getPage(ctx context.Context, q queryer, idOrSlug string) (model.Page, error
 	var p model.Page
 	var theme string
 	var updated int64
-	err := q.QueryRowContext(ctx, "SELECT id, title, slug, ord, theme, revision, updated_at FROM pages WHERE id = ? OR slug = ?", idOrSlug, idOrSlug).
-		Scan(&p.ID, &p.Title, &p.Slug, &p.Order, &theme, &p.Revision, &updated)
+	err := q.QueryRowContext(ctx, "SELECT id, title, slug, ord, public, theme, revision, updated_at FROM pages WHERE id = ? OR slug = ?", idOrSlug, idOrSlug).
+		Scan(&p.ID, &p.Title, &p.Slug, &p.Order, &p.Public, &theme, &p.Revision, &updated)
 	if err != nil {
 		return p, notFound(err)
 	}
@@ -78,8 +78,8 @@ func (s *Store) CreatePage(ctx context.Context, in model.PageInput) (model.Page,
 				return err
 			}
 		}
-		_, err := tx.ExecContext(ctx, "INSERT INTO pages (id, title, slug, ord, theme, revision, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
-			id, in.Title, in.Slug, in.Order, mustJSON(in.Theme), unix(s.now()))
+		_, err := tx.ExecContext(ctx, "INSERT INTO pages (id, title, slug, ord, public, theme, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+			id, in.Title, in.Slug, in.Order, in.Public, mustJSON(in.Theme), unix(s.now()))
 		if isUnique(err) {
 			return model.Invalid("slug", "страница с таким адресом уже есть")
 		}
@@ -103,8 +103,8 @@ func (s *Store) UpdatePage(ctx context.Context, id string, rev int64, in model.P
 		if err := checkRevision(ctx, tx, "pages", id, rev); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, "UPDATE pages SET title = ?, slug = ?, ord = ?, theme = ?, revision = revision + 1, updated_at = ? WHERE id = ?",
-			in.Title, in.Slug, in.Order, mustJSON(in.Theme), unix(s.now()), id)
+		_, err := tx.ExecContext(ctx, "UPDATE pages SET title = ?, slug = ?, ord = ?, public = ?, theme = ?, revision = revision + 1, updated_at = ? WHERE id = ?",
+			in.Title, in.Slug, in.Order, in.Public, mustJSON(in.Theme), unix(s.now()), id)
 		if isUnique(err) {
 			return model.Invalid("slug", "страница с таким адресом уже есть")
 		}
@@ -180,7 +180,6 @@ func (s *Store) DeletePage(ctx context.Context, id string) error {
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE settings SET
 			start_page_id = CASE WHEN start_page_id = ?1 THEN (SELECT id FROM pages ORDER BY ord LIMIT 1) ELSE start_page_id END,
-			public_page_id = CASE WHEN public_page_id = ?1 THEN NULL ELSE public_page_id END,
 			revision = revision + 1 WHERE id = 1`, id)
 		return err
 	})

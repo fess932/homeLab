@@ -37,7 +37,8 @@ type DocSettings struct {
 	Title       string  `json:"title"`
 	LogoAssetID *string `json:"logo_asset_id,omitempty"`
 	StartPage   string  `json:"start_page,omitempty"`
-	PublicPage  string  `json:"public_page,omitempty"`
+	// PublicPage — из старых экспортов: теперь публичность хранится у страницы (pages[].public).
+	PublicPage string `json:"public_page,omitempty"`
 }
 
 type DocPage struct {
@@ -95,9 +96,6 @@ func Export(snap store.Snapshot, now time.Time) Document {
 	}
 	if snap.Settings.StartPageID != nil {
 		doc.Settings.StartPage = slugs[*snap.Settings.StartPageID]
-	}
-	if snap.Settings.PublicPageID != nil {
-		doc.Settings.PublicPage = slugs[*snap.Settings.PublicPageID]
 	}
 	for _, p := range snap.Pages {
 		doc.Pages = append(doc.Pages, DocPage{ID: p.ID, PageInput: p.PageInput})
@@ -365,7 +363,7 @@ func buildHomeDeck(doc Document, env Env) (store.Snapshot, []Warning, error) {
 		snap.Pages = append(snap.Pages, model.Page{ID: p.ID, PageInput: in})
 	}
 
-	snap.Settings.StartPageID, snap.Settings.PublicPageID = nil, nil
+	snap.Settings.StartPageID = nil
 	if id, ok := slugs[doc.Settings.StartPage]; ok {
 		snap.Settings.StartPageID = &id
 	} else if doc.Settings.StartPage != "" {
@@ -375,7 +373,11 @@ func buildHomeDeck(doc Document, env Env) (store.Snapshot, []Warning, error) {
 		snap.Settings.StartPageID = &snap.Pages[0].ID
 	}
 	if id, ok := slugs[doc.Settings.PublicPage]; ok {
-		snap.Settings.PublicPageID = &id
+		for i := range snap.Pages {
+			if snap.Pages[i].ID == id {
+				snap.Pages[i].Public = true
+			}
+		}
 	} else if doc.Settings.PublicPage != "" {
 		warns = append(warns, Warning{"settings.public_page", "страница не найдена"})
 	}
@@ -421,7 +423,7 @@ func actionOrder(a string) string {
 }
 
 // dropLegacyWidgetPublic убирает отметку «публичный» у виджетов из старых экспортов:
-// теперь публикуется страница целиком (settings.public_page).
+// теперь публичность — флаг страницы (pages[].public).
 func dropLegacyWidgetPublic(doc map[string]any) {
 	pages, _ := doc["pages"].([]any)
 	for _, p := range pages {

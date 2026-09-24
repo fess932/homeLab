@@ -135,18 +135,13 @@ func TestPagesAtomicSave(t *testing.T) {
 		t.Fatal("повторный slug должен отклоняться")
 	}
 
-	// Удаление стартовой и публичной страницы сбрасывает ссылки в настройках.
-	st, _ = s.GetSettings(ctx)
-	st.PublicPageID = &p.ID
-	if _, err := s.UpdateSettings(ctx, st.Revision, st); err != nil {
-		t.Fatal(err)
-	}
+	// Удаление стартовой страницы переносит старт на следующую.
 	if err := s.DeletePage(ctx, p.ID); err != nil {
 		t.Fatal(err)
 	}
 	st, _ = s.GetSettings(ctx)
-	if st.PublicPageID != nil || st.StartPageID == nil || *st.StartPageID != other.ID {
-		t.Fatalf("после удаления: start=%v public=%v", st.StartPageID, st.PublicPageID)
+	if st.StartPageID == nil || *st.StartPageID != other.ID {
+		t.Fatalf("после удаления: start=%v", st.StartPageID)
 	}
 	if err := s.DeletePage(ctx, p.ID); !errors.Is(err, model.ErrNotFound) {
 		t.Fatalf("повторное удаление: %v", err)

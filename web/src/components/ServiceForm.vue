@@ -148,7 +148,7 @@ async function submit() {
       <fieldset class="box">
         <legend class="small">{{ t('settings.icon') }}</legend>
         <div class="row icon-row">
-          <ServiceIcon :icon="form.icon" :url="form.url" :size="32" />
+          <ServiceIcon :icon="form.icon" :size="32" />
           <label class="field">
             <span class="sr-only">{{ t('settings.icon') }}</span>
             <select v-model="iconKind" class="input">
@@ -158,6 +158,7 @@ async function submit() {
               <option value="asset" :disabled="!assets.length">{{ t('settings.iconAsset') }}</option>
             </select>
           </label>
+          <span v-if="iconKind === 'favicon'" class="hint">{{ t('settings.iconFaviconHint') }}</span>
           <label v-if="iconKind === 'builtin'" class="field">
             <span class="sr-only">{{ t('settings.iconBuiltin') }}</span>
             <select v-model="form.icon" class="input">

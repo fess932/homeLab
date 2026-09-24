@@ -69,7 +69,7 @@ describe('WidgetForm: ссылка', () => {
     await flushPromises()
     expect(posts).toEqual([])
     const saved = w.emitted('save')?.[0]?.[0] as Widget<'link'>
-    expect(saved.config).toMatchObject({ service_id: '', url: 'https://router.lan', title: '' })
+    expect(saved.config).toMatchObject({ service_id: '', url: 'https://router.lan', title: '', icon: 'favicon' })
     w.unmount()
   })
 })

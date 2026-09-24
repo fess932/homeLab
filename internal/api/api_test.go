@@ -22,6 +22,7 @@ import (
 	_ "github.com/fess932/homeLab/drivers/all"
 	"github.com/fess932/homeLab/internal/config"
 	"github.com/fess932/homeLab/internal/devices"
+	"github.com/fess932/homeLab/internal/favicon"
 	"github.com/fess932/homeLab/internal/importer"
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/probe"
@@ -86,6 +87,8 @@ func newHarness(t *testing.T) *harness {
 		Reconciler: &tsdb.Reconciler{Store: st, Box: box, Sup: sup, Log: log},
 		Watcher:    tsdb.NewWatcher(client, st, sup, log),
 		TSDB:       client, Assets: assetSvc,
+		// Тестовые сайты слушают 127.0.0.1, поэтому без netguard; блокировку проверяет пакет favicon.
+		Favicons: favicon.New(http.DefaultTransport),
 		Importer: &importer.Service{Store: st, Assets: assetSvc, RevisionsDir: filepath.Join(dir, "rev"), OnApplied: syncChecks},
 		Log:      log,
 		SetupToken: func() (string, bool) {
@@ -327,6 +330,7 @@ func TestPublicPage(t *testing.T) {
 		"widgets": []any{
 			map[string]any{"id": "new_1", "group_id": "new_g1", "type": "link", "config": map[string]any{"service_id": pub.ID}, "layout": map[string]any{}},
 			map[string]any{"id": "new_2", "group_id": "new_g2", "type": "link", "config": map[string]any{"service_id": second.ID}, "layout": map[string]any{}},
+			map[string]any{"id": "new_3", "group_id": "new_g2", "type": "number", "config": map[string]any{"metric": map[string]any{"preset_id": "tpl_node_cpu", "vars": map[string]string{"source_id": src.ID}}}, "layout": map[string]any{}},
 		}}
 	r := h.req("POST", "/api/v1/pages", in, nil)
 	h.expect(r, 201, "")
@@ -334,36 +338,47 @@ func TestPublicPage(t *testing.T) {
 	r.json(&p)
 
 	anon := &harness{t: t, srv: h.srv, client: &http.Client{}}
-	h.expect(anon.req("GET", "/api/v1/public", nil, nil), 404, "public_off")
+	// Закрытая страница для анонима неотличима от несуществующей.
+	h.expect(anon.req("GET", "/api/v1/public/home", nil, nil), 404, "not_found")
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[0].ID+"/data", nil, nil), 404, "not_found")
 
-	var set model.Settings
-	r = h.req("GET", "/api/v1/settings", nil, nil)
-	r.json(&set)
-	set.PublicPageID = &p.ID
-	h.expect(h.req("PUT", "/api/v1/settings", set, map[string]string{"If-Match": r.header.Get("ETag")}), 200, "")
+	in["public"] = true
+	h.expect(h.req("PUT", "/api/v1/pages/"+p.ID, in, map[string]string{"If-Match": `"1"`}), 200, "")
+	r = h.req("GET", "/api/v1/pages/"+p.ID, nil, nil)
+	r.json(&p)
 
 	var view struct {
 		Title    string
 		Page     model.Page
 		Services []model.Service
+		Presets  []model.Preset
 	}
-	r = anon.req("GET", "/api/v1/public", nil, nil)
+	r = anon.req("GET", "/api/v1/public/home", nil, nil)
 	h.expect(r, 200, "")
 	r.json(&view)
 	// Страница публикуется целиком; сервисы вне её виджетов не раскрываются анониму.
-	if len(view.Page.Widgets) != 2 || len(view.Page.Groups) != 2 {
+	if len(view.Page.Widgets) != 3 || len(view.Page.Groups) != 2 {
 		t.Fatalf("публичная страница: %s", r.body)
 	}
 	if len(view.Services) != 2 || view.Services[0].SourceID != nil || view.Services[1].SourceID != nil {
 		t.Fatalf("сервисы: %s", r.body)
 	}
+	for _, sv := range view.Services {
+		if sv.Status != nil && sv.Status.Error != "" {
+			t.Fatalf("текст ошибки проверки виден анониму: %s", sv.Status.Error)
+		}
+	}
 	if strings.Contains(string(r.body), "private") {
 		t.Fatal("приватный сервис в ответе")
 	}
-	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[0].ID+"/data", nil, nil), 200, "")
-	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 200, "")
-	h.expect(anon.req("GET", "/api/v1/public/widgets/wgt_missing/data", nil, nil), 404, "not_found")
-	h.expect(anon.req("GET", "/api/v1/public/widgets/"+p.Widgets[0].ID+"/data?range=2y", nil, nil), 422, "validation")
+	// Подписи и единицы виджетов приходят со страницей, выражения запросов — нет.
+	if len(view.Presets) != 1 || view.Presets[0].ID != "tpl_node_cpu" || view.Presets[0].Title == "" || view.Presets[0].Expression != "" {
+		t.Fatalf("шаблоны: %+v", view.Presets)
+	}
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[0].ID+"/data", nil, nil), 200, "")
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 200, "")
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/wgt_missing/data", nil, nil), 404, "not_found")
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[0].ID+"/data?range=2y", nil, nil), 422, "validation")
 	// Анонимный клиент не может выполнить произвольный запрос.
 	h.expect(anon.req("POST", "/api/v1/metrics/query", map[string]any{"query": "up"}, nil), 401, "unauthorized")
 	h.expect(anon.req("GET", "/api/v1/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 401, "unauthorized")
@@ -420,8 +435,22 @@ func TestAssets(t *testing.T) {
 		t.Fatalf("выдача: %d %v", r.status, r.header)
 	}
 
-	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`)
-	h.expect(h.upload(svg), 415, "unsupported_media")
+	// SVG принимается только без активного содержимого.
+	for _, bad := range []string{
+		`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><rect/></a></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><body xmlns="http://www.w3.org/1999/xhtml"/></foreignObject></svg>`,
+	} {
+		h.expect(h.upload([]byte(bad)), 415, "unsupported_media")
+	}
+	r = h.upload([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="8"/></svg>`))
+	h.expect(r, 201, "")
+	var svgAsset model.Asset
+	r.json(&svgAsset)
+	if svgAsset.MediaType != "image/svg+xml" || svgAsset.Width != 32 {
+		t.Fatalf("SVG: %+v", svgAsset)
+	}
 	h.expect(h.upload([]byte("просто текст")), 415, "unsupported_media")
 	// PNG-заголовок с мусором после него: проверка по содержимому, а не по расширению.
 	fake := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 100)...)
@@ -755,4 +784,49 @@ func secretsOf(h *harness) []model.Secret {
 	var list []model.Secret
 	h.req("GET", "/api/v1/secrets", nil, nil).json(&list)
 	return list
+}
+
+func TestSiteIcons(t *testing.T) {
+	h := newHarness(t)
+	h.setup()
+	var icon bytes.Buffer
+	_ = png.Encode(&icon, image.NewRGBA(image.Rect(0, 0, 24, 24)))
+	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/static/logo.png" {
+			_, _ = w.Write(icon.Bytes())
+			return
+		}
+		_, _ = w.Write([]byte(`<link rel="icon" href="/static/logo.png">`))
+	}))
+	defer site.Close()
+
+	// Сервис: icon "favicon" заменяется загруженным файлом с сайта.
+	r := h.req("POST", "/api/v1/services", map[string]any{"name": "site", "url": site.URL + "/", "icon": "favicon"}, nil)
+	h.expect(r, 201, "")
+	var sv model.Service
+	r.json(&sv)
+	if !strings.HasPrefix(sv.Icon, "asset:ast_") {
+		t.Fatalf("иконка сервиса: %q", sv.Icon)
+	}
+	h.expect(h.req("GET", "/assets/"+strings.TrimPrefix(sv.Icon, "asset:"), nil, nil), 200, "")
+
+	// Простая ссылка: то же при сохранении страницы; недоступный сайт — без иконки.
+	in := map[string]any{"title": "Дом", "slug": "home", "theme": map[string]any{},
+		"groups": []any{map[string]any{"id": "new_g", "title": "A"}},
+		"widgets": []any{
+			map[string]any{"id": "new_1", "group_id": "new_g", "type": "link", "config": map[string]any{"service_id": "", "url": site.URL, "icon": "favicon"}, "layout": map[string]any{}},
+			map[string]any{"id": "new_2", "group_id": "new_g", "type": "link", "config": map[string]any{"service_id": "", "url": "http://127.0.0.1:1/", "icon": "favicon"}, "layout": map[string]any{}},
+		}}
+	r = h.req("POST", "/api/v1/pages", in, nil)
+	h.expect(r, 201, "")
+	var p model.Page
+	r.json(&p)
+	var c1, c2 model.LinkConfig
+	_ = json.Unmarshal(p.Widgets[0].Config, &c1)
+	_ = json.Unmarshal(p.Widgets[1].Config, &c2)
+	if c1.Icon != sv.Icon || c2.Icon != "" {
+		t.Fatalf("иконки ссылок: %q %q (сервис %q)", c1.Icon, c2.Icon, sv.Icon)
+	}
+	// Файл занят ссылкой — удалить его нельзя.
+	h.expect(h.req("DELETE", "/api/v1/assets/"+strings.TrimPrefix(c1.Icon, "asset:"), nil, nil), 409, "")
 }

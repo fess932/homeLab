@@ -27,9 +27,9 @@ async function submit() {
   error.value = null
   saved.value = false
   try {
-    const { title, logo_asset_id, start_page_id, public_page_id } = form.value
+    const { title, logo_asset_id, start_page_id } = form.value
     store.settings = await api.settings.update(
-      { title, logo_asset_id, start_page_id, public_page_id },
+      { title, logo_asset_id, start_page_id },
       form.value.revision ?? 0,
     )
     form.value = { ...store.settings }
@@ -64,17 +64,8 @@ async function submit() {
         <option v-for="p in store.pages" :key="p.id" :value="p.id">{{ p.title }}</option>
       </select>
     </label>
-    <label class="field">
-      <span>{{ t('settings.publicPage') }}</span>
-      <select v-model="form.public_page_id" class="input" aria-describedby="public-hint">
-        <option :value="null">{{ t('settings.publicOff') }}</option>
-        <option v-for="p in store.pages" :key="p.id" :value="p.id">{{ p.title }}</option>
-      </select>
-      <span id="public-hint" class="hint">{{ t('settings.publicHint') }}</span>
-    </label>
     <div class="toolbar">
       <button type="submit" class="btn primary" :disabled="busy">{{ t('app.save') }}</button>
-      <RouterLink v-if="form.public_page_id" to="/public" class="btn">{{ t('settings.openPublic') }}</RouterLink>
     </div>
   </form>
   <ApiErrorAlert v-else :error="error" />

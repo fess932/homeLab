@@ -14,7 +14,6 @@ export interface Settings {
   title: string
   logo_asset_id: string | null
   start_page_id: string | null
-  public_page_id: string | null
   revision?: number
   restart_required?: string[]
   runtime?: {
@@ -64,6 +63,8 @@ export interface LinkConfig {
   /** Простая ссылка без сервиса и проверки: используется, когда service_id пуст. */
   url?: string
   title?: string
+  /** Иконка простой ссылки: «favicon» при сохранении сервер заменяет файлом с сайта. */
+  icon?: string
   show_status: boolean
   show_latency: boolean
   metric: MetricRef | null
@@ -119,6 +120,7 @@ export interface PageSummary {
   title: string
   slug: string
   order: number
+  public?: boolean
   revision: number
 }
 
@@ -126,6 +128,8 @@ export interface PageInput {
   title: string
   slug: string
   order?: number
+  /** Страница целиком открывается без входа по адресу /public/<slug>. */
+  public?: boolean
   theme: Theme
   groups: Group[]
   widgets: Widget[]
@@ -492,6 +496,7 @@ export interface PublicPage {
   logo_asset_id: string | null
   page: Page
   services: Service[]
+  presets: QueryPreset[]
 }
 
 export interface Readiness {

@@ -57,7 +57,7 @@ export async function reorderPages(list: PageSummary[]): Promise<string[]> {
     for (const [order, summary] of list.entries()) {
       if (summary.order === order) continue
       const full = await api.pages.get(summary.id)
-      await api.pages.save(full.id, { title: full.title, slug: full.slug, order, theme: full.theme, groups: full.groups, widgets: full.widgets }, full.revision)
+      await api.pages.save(full.id, { title: full.title, slug: full.slug, order, public: full.public ?? false, theme: full.theme, groups: full.groups, widgets: full.widgets }, full.revision)
       changed.push(full.id)
     }
   } finally {

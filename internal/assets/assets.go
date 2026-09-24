@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"image"
@@ -14,6 +15,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/store"
@@ -22,18 +25,20 @@ import (
 
 const (
 	MaxSize      = 5 << 20
+	MaxSVGSize   = 256 << 10
 	MaxDimension = 8192
 )
 
 var (
 	ErrTooLarge    = errors.New("файл больше 5 MiB")
-	ErrUnsupported = errors.New("поддерживаются только PNG, JPEG и WebP")
+	ErrUnsupported = errors.New("поддерживаются только PNG, JPEG, WebP и SVG")
 )
 
 var formats = map[string]struct{ mediaType, ext string }{
 	"png":  {"image/png", ".png"},
 	"jpeg": {"image/jpeg", ".jpg"},
 	"webp": {"image/webp", ".webp"},
+	"svg":  {"image/svg+xml", ".svg"},
 }
 
 type Service struct {
@@ -53,10 +58,9 @@ func (s *Service) SaveBytes(ctx context.Context, data []byte) (model.Asset, erro
 	if len(data) > MaxSize {
 		return model.Asset{}, ErrTooLarge
 	}
-	sniffed := http.DetectContentType(data)
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	cfg, format, err := decodeConfig(data)
 	f, ok := formats[format]
-	if err != nil || !ok || sniffed != f.mediaType {
+	if err != nil || !ok {
 		return model.Asset{}, ErrUnsupported
 	}
 	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > MaxDimension || cfg.Height > MaxDimension {
@@ -118,4 +122,90 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	return os.Remove(filepath.Join(s.Dir, filepath.Base(a.Path)))
+}
+
+// decodeConfig определяет формат и размеры: растр — по сигнатуре и заголовку,
+// SVG — по корневому элементу. SVG отдаётся с CSP sandbox, скрипты в нём не выполняются.
+func decodeConfig(data []byte) (image.Config, string, error) {
+	if cfg, ok := svgConfig(data); ok {
+		return cfg, "svg", nil
+	}
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if f, ok := formats[format]; err == nil && ok && http.DetectContentType(data) != f.mediaType {
+		return cfg, format, ErrUnsupported
+	}
+	return cfg, format, err
+}
+
+func svgConfig(data []byte) (image.Config, bool) {
+	if len(data) > MaxSVGSize {
+		return image.Config{}, false
+	}
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return image.Config{}, false
+		}
+		el, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if el.Name.Local != "svg" {
+			return image.Config{}, false
+		}
+		// Размер для списка файлов: из width/height, иначе из viewBox, иначе условные 64.
+		w, h := 64, 64
+		attrs := map[string]string{}
+		for _, a := range el.Attr {
+			attrs[a.Name.Local] = a.Value
+		}
+		if vb := strings.Fields(strings.ReplaceAll(attrs["viewBox"], ",", " ")); len(vb) == 4 {
+			w, h = dim(vb[2], w), dim(vb[3], h)
+		}
+		w, h = dim(attrs["width"], w), dim(attrs["height"], h)
+		if !svgInert(el, dec) {
+			return image.Config{}, false
+		}
+		return image.Config{Width: min(w, MaxDimension), Height: min(h, MaxDimension)}, true
+	}
+}
+
+// svgInert проверяет весь документ: без скриптов, встроенного HTML, обработчиков событий
+// и javascript:-ссылок. Это вторая линия защиты поверх CSP sandbox при выдаче.
+func svgInert(root xml.StartElement, dec *xml.Decoder) bool {
+	el := root
+	for {
+		switch strings.ToLower(el.Name.Local) {
+		case "script", "foreignobject", "iframe", "embed", "object":
+			return false
+		}
+		for _, a := range el.Attr {
+			name, val := strings.ToLower(a.Name.Local), strings.ToLower(strings.TrimSpace(a.Value))
+			if strings.HasPrefix(name, "on") || strings.Contains(val, "javascript:") {
+				return false
+			}
+		}
+		for {
+			tok, err := dec.Token()
+			if errors.Is(err, io.EOF) {
+				return true
+			}
+			if err != nil {
+				return false
+			}
+			if se, ok := tok.(xml.StartElement); ok {
+				el = se
+				break
+			}
+		}
+	}
+}
+
+func dim(s string, fallback int) int {
+	f, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "px"), 64)
+	if err != nil || f < 1 {
+		return fallback
+	}
+	return int(f)
 }

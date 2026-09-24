@@ -25,7 +25,7 @@ const tone = computed(() => (service.value?.check_id ? probeTone[status.value?.s
     <template v-if="service">
       <span v-if="service.check_id" class="led" aria-hidden="true" />
       <div class="head">
-        <ServiceIcon :icon="service.icon" :url="service.url" :size="22" />
+        <ServiceIcon :icon="service.icon" :size="22" />
         <span class="name">{{ service.name }}</span>
         <span v-if="service.check_id" class="state" :title="detail">{{ probeLabel(status?.state ?? 'unknown') }}</span>
       </div>

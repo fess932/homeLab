@@ -21,6 +21,9 @@ const (
 	StatePending  = "pending"
 )
 
+// IconFavicon в поле icon — команда серверу взять иконку с сайта при сохранении.
+const IconFavicon = "favicon"
+
 var (
 	PresetVars  = []string{"source_id", "service_id", "device_id", "instance"}
 	labelRe     = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
@@ -391,7 +394,6 @@ type Settings struct {
 	Title           string       `json:"title"`
 	LogoAssetID     *string      `json:"logo_asset_id"`
 	StartPageID     *string      `json:"start_page_id"`
-	PublicPageID    *string      `json:"public_page_id"`
 	Revision        int64        `json:"revision"`
 	RestartRequired []string     `json:"restart_required"`
 	Runtime         *RuntimeInfo `json:"runtime,omitempty"`

@@ -76,6 +76,8 @@ type PageInput struct {
 	Title   string   `json:"title"`
 	Slug    string   `json:"slug"`
 	Order   int      `json:"order"`
+	// Public — страница целиком открывается без входа по адресу /public/<slug>.
+	Public  bool     `json:"public"`
 	Theme   Theme    `json:"theme"`
 	Groups  []Group  `json:"groups"`
 	Widgets []Widget `json:"widgets"`
@@ -93,6 +95,7 @@ type PageSummary struct {
 	Title    string `json:"title"`
 	Slug     string `json:"slug"`
 	Order    int    `json:"order"`
+	Public   bool   `json:"public"`
 	Revision int64  `json:"revision"`
 }
 
@@ -106,6 +109,7 @@ type LinkConfig struct {
 	ServiceID   string     `json:"service_id"`
 	URL         string     `json:"url,omitempty"`
 	Title       string     `json:"title,omitempty"`
+	Icon        string     `json:"icon,omitempty"`
 	ShowStatus  bool       `json:"show_status"`
 	ShowLatency bool       `json:"show_latency"`
 	Metric      *MetricRef `json:"metric"`
@@ -294,6 +298,7 @@ func validateWidgetConfig(v *validator, f string, w Widget) {
 				f+".url", "выберите сервис или укажите адрес http:// или https://")
 		}
 		v.check(utf8.RuneCountInString(c.Title) <= 100, f+".title", "до 100 символов")
+		v.check(iconRe.MatchString(c.Icon), f+".icon", "builtin:<имя>, asset:<id> или favicon")
 		if c.Metric != nil {
 			validateMetricRef(v, f+".metric", *c.Metric)
 		}

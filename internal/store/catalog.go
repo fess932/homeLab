@@ -403,10 +403,10 @@ func (s *Store) DeletePreset(ctx context.Context, id string) error {
 
 func (s *Store) GetSettings(ctx context.Context) (model.Settings, error) {
 	var st model.Settings
-	var logo, start, public sql.NullString
-	err := s.db.QueryRowContext(ctx, "SELECT title, logo_asset_id, start_page_id, public_page_id, revision FROM settings WHERE id = 1").
-		Scan(&st.Title, &logo, &start, &public, &st.Revision)
-	st.LogoAssetID, st.StartPageID, st.PublicPageID = strPtr(logo), strPtr(start), strPtr(public)
+	var logo, start sql.NullString
+	err := s.db.QueryRowContext(ctx, "SELECT title, logo_asset_id, start_page_id, revision FROM settings WHERE id = 1").
+		Scan(&st.Title, &logo, &start, &st.Revision)
+	st.LogoAssetID, st.StartPageID = strPtr(logo), strPtr(start)
 	st.RestartRequired = []string{}
 	return st, err
 }
@@ -420,20 +420,17 @@ func (s *Store) UpdateSettings(ctx context.Context, rev int64, in model.Settings
 		if cur != rev {
 			return model.ErrConflict
 		}
-		for field, id := range map[string]*string{"start_page_id": in.StartPageID, "public_page_id": in.PublicPageID} {
-			if id == nil {
-				continue
-			}
+		if in.StartPageID != nil {
 			var n int
-			if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM pages WHERE id = ?", *id).Scan(&n); err != nil {
+			if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM pages WHERE id = ?", *in.StartPageID).Scan(&n); err != nil {
 				return err
 			}
 			if n == 0 {
-				return model.Invalid(field, "страница не найдена")
+				return model.Invalid("start_page_id", "страница не найдена")
 			}
 		}
-		_, err := tx.ExecContext(ctx, "UPDATE settings SET title = ?, logo_asset_id = ?, start_page_id = ?, public_page_id = ?, revision = revision + 1 WHERE id = 1",
-			in.Title, nullStr(in.LogoAssetID), nullStr(in.StartPageID), nullStr(in.PublicPageID))
+		_, err := tx.ExecContext(ctx, "UPDATE settings SET title = ?, logo_asset_id = ?, start_page_id = ?, revision = revision + 1 WHERE id = 1",
+			in.Title, nullStr(in.LogoAssetID), nullStr(in.StartPageID))
 		if isFK(err) {
 			return model.Invalid("logo_asset_id", "файл не найден")
 		}
@@ -494,6 +491,7 @@ func (s *Store) AssetInUse(ctx context.Context, id string) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) FROM services WHERE icon = 'asset:' || ?1) +
+		(SELECT count(*) FROM widgets WHERE type = 'link' AND json_extract(config, '$.icon') = 'asset:' || ?1) +
 		(SELECT count(*) FROM settings WHERE logo_asset_id = ?1) +
 		(SELECT count(*) FROM pages WHERE json_extract(theme, '$.background_asset_id') = ?1)`, id).Scan(&n)
 	return n > 0, err

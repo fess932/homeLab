@@ -146,8 +146,8 @@ func (s *Store) Replace(ctx context.Context, scope ReplaceScope, snap Snapshot, 
 				return true
 			}
 			for _, p := range snap.Pages {
-				if _, err := tx.ExecContext(ctx, "INSERT INTO pages (id, title, slug, ord, theme, revision, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
-					p.ID, p.Title, p.Slug, p.Order, mustJSON(p.Theme), now); err != nil {
+				if _, err := tx.ExecContext(ctx, "INSERT INTO pages (id, title, slug, ord, public, theme, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+					p.ID, p.Title, p.Slug, p.Order, p.Public, mustJSON(p.Theme), now); err != nil {
 					return err
 				}
 				if err := writePageContent(ctx, tx, p.ID, p.PageInput, reuse); err != nil {
@@ -155,8 +155,8 @@ func (s *Store) Replace(ctx context.Context, scope ReplaceScope, snap Snapshot, 
 				}
 			}
 			st := snap.Settings
-			if _, err := tx.ExecContext(ctx, "UPDATE settings SET title = ?, start_page_id = ?, public_page_id = ?, revision = revision + 1 WHERE id = 1",
-				st.Title, nullStr(st.StartPageID), nullStr(st.PublicPageID)); err != nil {
+			if _, err := tx.ExecContext(ctx, "UPDATE settings SET title = ?, start_page_id = ?, revision = revision + 1 WHERE id = 1",
+				st.Title, nullStr(st.StartPageID)); err != nil {
 				return err
 			}
 			if _, err := tx.ExecContext(ctx, "UPDATE settings SET logo_asset_id = (SELECT id FROM assets WHERE id = ?) WHERE id = 1",

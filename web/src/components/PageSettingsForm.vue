@@ -1,38 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api, type Asset, type PageInput } from '@/api'
-import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
 import ModalDialog from '@/components/ui/ModalDialog.vue'
 import { t } from '@/i18n'
 import { slugPattern } from '@/lib/validate'
-import { loadSettings, store } from '@/stores/app'
 
-const props = defineProps<{ page: PageInput; pageId: string }>()
-const emit = defineEmits<{ save: [p: Pick<PageInput, 'title' | 'slug' | 'theme'>]; close: [] }>()
+const props = defineProps<{ page: PageInput }>()
+const emit = defineEmits<{ save: [p: Pick<PageInput, 'title' | 'slug' | 'theme' | 'public'>]; close: [] }>()
 
 const title = ref(props.page.title)
 const slug = ref(props.page.slug)
 const theme = ref({ ...props.page.theme })
 const assets = ref<Asset[]>([])
 const slugError = ref('')
-const error = ref<unknown>(null)
-const busy = ref(false)
-
-// Публичной бывает одна страница целиком: отметка меняет settings.public_page_id сразу
-// при сохранении параметров, не дожидаясь сохранения самой страницы.
-const wasPublic = computed(() => store.settings?.public_page_id === props.pageId)
-const isPublic = ref(wasPublic.value)
-const publicUrl = `${location.origin}/public`
+const isPublic = ref(props.page.public ?? false)
+const publicUrl = computed(() => `${location.origin}/public/${slug.value}`)
 const copied = ref(false)
-const otherPublic = computed(() => {
-  const id = store.settings?.public_page_id
-  if (!isPublic.value || !id || id === props.pageId) return null
-  return store.pages.find((p) => p.id === id)?.title ?? null
-})
 
 async function copyLink() {
   try {
-    await navigator.clipboard.writeText(publicUrl)
+    await navigator.clipboard.writeText(publicUrl.value)
     copied.value = true
   } catch {
     copied.value = false
@@ -47,35 +34,18 @@ onMounted(async () => {
   }
 })
 
-async function submit() {
+function submit() {
   if (!slugPattern.test(slug.value)) {
     slugError.value = t('validation.slug')
     return
   }
-  if (isPublic.value !== wasPublic.value) {
-    busy.value = true
-    error.value = null
-    try {
-      const s = await loadSettings()
-      store.settings = await api.settings.update(
-        { ...s, public_page_id: isPublic.value ? props.pageId : null },
-        s.revision ?? 0,
-      )
-    } catch (e) {
-      error.value = e
-      return
-    } finally {
-      busy.value = false
-    }
-  }
-  emit('save', { title: title.value.trim(), slug: slug.value, theme: theme.value })
+  emit('save', { title: title.value.trim(), slug: slug.value, theme: theme.value, public: isPublic.value })
 }
 </script>
 
 <template>
   <ModalDialog :title="t('editor.pageSettings')" @close="emit('close')">
     <form id="page-form" @submit.prevent="submit">
-      <ApiErrorAlert :error="error" />
       <label class="field">
         <span>{{ t('editor.pageTitle') }}</span>
         <input v-model="title" class="input" required maxlength="100" />
@@ -87,12 +57,9 @@ async function submit() {
         <span v-if="slugError" class="error">{{ slugError }}</span>
       </label>
       <label class="field check">
-        <input v-model="isPublic" type="checkbox" aria-describedby="public-hint" /> {{ t('editor.public') }}
+        <input v-model="isPublic" type="checkbox" /> {{ t('editor.public') }}
       </label>
-      <span id="public-hint" class="hint">{{ t('editor.publicHint') }}</span>
-      <span v-if="otherPublic" class="hint warn">{{ t('editor.publicReplaces', { title: otherPublic }) }}</span>
       <div v-if="isPublic" class="field">
-        <span>{{ t('editor.publicLink') }}</span>
         <div class="link-row">
           <input class="input" :value="publicUrl" readonly @focus="($event.target as HTMLInputElement).select()" />
           <button type="button" class="btn" @click="copyLink">{{ copied ? t('editor.copied') : t('editor.copy') }}</button>
@@ -141,7 +108,7 @@ async function submit() {
     </form>
     <template #footer>
       <button type="button" class="btn" @click="emit('close')">{{ t('app.cancel') }}</button>
-      <button type="submit" form="page-form" class="btn primary" :disabled="busy">{{ t('app.save') }}</button>
+      <button type="submit" form="page-form" class="btn primary">{{ t('app.save') }}</button>
     </template>
   </ModalDialog>
 </template>
@@ -161,10 +128,6 @@ async function submit() {
 .link-row .input {
   flex: 1;
   min-width: 0;
-}
-
-.warn {
-  color: var(--warn);
 }
 
 .color {
