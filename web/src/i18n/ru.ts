@@ -40,7 +40,7 @@ export const ru = {
     passwordRepeat: 'Повторите пароль',
     passwordMismatch: 'Пароли не совпадают',
     panelTitle: 'Название панели',
-    defaultTitle: 'Мой дом',
+    defaultTitle: 'HomeDeck',
     submit: 'Создать администратора',
     done: 'Настройка уже выполнена',
   },
