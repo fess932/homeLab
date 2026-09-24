@@ -22,6 +22,9 @@ func TestFromEnv(t *testing.T) {
 	if len(c.TrustedProxies) != 2 || !c.TrustedProxies[0].Contains(netip.MustParseAddr("10.0.0.1")) || c.TrustedProxies[0].Bits() != 32 {
 		t.Fatalf("proxies: %v", c.TrustedProxies)
 	}
+	if c.Retention != "50y" {
+		t.Fatalf("срок хранения по умолчанию: %s", c.Retention)
+	}
 	if len(c.AllowedHosts) != 1 || c.AllowedHosts[0] != "deck.lan" {
 		t.Fatalf("hosts: %v", c.AllowedHosts)
 	}
@@ -32,6 +35,8 @@ func TestFromEnvErrors(t *testing.T) {
 		{"HOMEDECK_RETENTION", "30"},
 		{"HOMEDECK_RETENTION", "0d"},
 		{"HOMEDECK_RETENTION", "30days"},
+		{"HOMEDECK_RETENTION", "101y"},
+		{"HOMEDECK_RETENTION", "40000d"},
 		{"HOMEDECK_MIN_FREE_DISK", "lots"},
 		{"HOMEDECK_TRUSTED_PROXIES", "not-an-ip"},
 		{"HOMEDECK_VM_MEMORY_PERCENT", "95"},

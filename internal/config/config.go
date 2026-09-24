@@ -34,12 +34,25 @@ type Config struct {
 
 var retentionRe = regexp.MustCompile(`^[1-9][0-9]*[hdwy]$`)
 
+const (
+	DefaultRetention = "50y"
+	// MaxRetention — самый долгий срок хранения, который принимает VictoriaMetrics.
+	MaxRetention = "100y"
+)
+
+// retentionHours переводит срок хранения в часы, чтобы сравнить его с пределом.
+func retentionHours(r string) int {
+	n, _ := strconv.Atoi(r[:len(r)-1])
+	return n * map[byte]int{'h': 1, 'd': 24, 'w': 24 * 7, 'y': 24 * 365}[r[len(r)-1]]
+}
+
 func FromEnv(version string) (Config, error) {
 	c := Config{
 		Listen:          env("HOMEDECK_LISTEN", ":8080"),
 		DataDir:         env("HOMEDECK_DATA_DIR", "/data"),
 		RuntimeDir:      env("HOMEDECK_RUNTIME_DIR", "/tmp/homedeck"),
-		Retention:       env("HOMEDECK_RETENTION", "30d"),
+		// По умолчанию история хранится полвека, то есть фактически не удаляется.
+		Retention:       env("HOMEDECK_RETENTION", DefaultRetention),
 		VMBinary:        env("HOMEDECK_VM_BINARY", "/usr/local/bin/victoria-metrics"),
 		VMListen:        env("HOMEDECK_VM_LISTEN", "127.0.0.1:8428"),
 		InternalListen:  env("HOMEDECK_INTERNAL_LISTEN", "127.0.0.1:9091"),
@@ -54,8 +67,11 @@ func FromEnv(version string) (Config, error) {
 	if c.SecretKeyFile == "" {
 		c.SecretKeyFile = filepath.Join(c.DataDir, "secrets.key")
 	}
-	if !retentionRe.MatchString(c.Retention) {
+	if !retentionRe.MatchString(c.Retention) || len(c.Retention) > 8 {
 		return c, fmt.Errorf("HOMEDECK_RETENTION: %q, ожидается число с суффиксом h, d, w или y", c.Retention)
+	}
+	if retentionHours(c.Retention) > retentionHours(MaxRetention) {
+		return c, fmt.Errorf("HOMEDECK_RETENTION: %q, VictoriaMetrics хранит не дольше %s", c.Retention, MaxRetention)
 	}
 	var err error
 	if c.MinFreeDisk, err = parseSize(env("HOMEDECK_MIN_FREE_DISK", "512MiB")); err != nil {
