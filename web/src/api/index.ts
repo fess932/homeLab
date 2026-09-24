@@ -7,6 +7,9 @@ import type {
   Device,
   DeviceInput,
   DeviceStatus,
+  DiscoverResponse,
+  DriverInfo,
+  DriverLogin,
   ImportFormat,
   ImportPreview,
   InstantQuery,
@@ -93,8 +96,23 @@ export function createApi(http: Http) {
     },
     devices: {
       ...crud<Device, DeviceInput>('/api/v1/devices'),
+      /** Создание с учётными данными в том же запросе: сервер сохранит их вместе с устройством. */
+      createWith: (input: DeviceInput & { secret?: SecretInput }) => r<Device>('/api/v1/devices', { method: 'POST', body: input }),
+      updateWith: (id: string, input: DeviceInput & { secret?: SecretInput }, revision: number) =>
+        r<Device>(`/api/v1/devices/${enc(id)}`, { method: 'PUT', body: input, revision }),
       test: (input: DeviceInput & { secret?: SecretInput }) =>
         r<DeviceStatus>('/api/v1/devices/test', { method: 'POST', body: input }),
+    },
+    drivers: {
+      list: () => r<DriverInfo[]>('/api/v1/drivers'),
+      discover: (kind: string, subnet = '') =>
+        r<DiscoverResponse>(`/api/v1/drivers/${enc(kind)}/discover`, { method: 'POST', body: { subnet } }),
+      login: (kind: string, params: Record<string, string>) =>
+        r<DriverLogin>(`/api/v1/drivers/${enc(kind)}/login`, { method: 'POST', body: params }),
+      checkLogin: (kind: string, id: string) =>
+        r<{ state: 'pending' | 'done'; account?: Secret }>(`/api/v1/drivers/${enc(kind)}/login/${enc(id)}`),
+      adopt: (kind: string, body: { account_id: string; ref: string; name: string; address: string }) =>
+        r<Device>(`/api/v1/drivers/${enc(kind)}/adopt`, { method: 'POST', body }),
     },
     secrets: {
       list: () => r<Secret[]>('/api/v1/secrets'),

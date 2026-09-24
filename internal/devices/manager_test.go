@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/fess932/homeLab/drivers/httpjson"
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/secrets"
 )
@@ -56,7 +57,8 @@ func TestManagerSyncAndTest(t *testing.T) {
 	m := &Manager{Secret: func(context.Context, string) (secrets.Payload, error) { return secrets.Payload{}, nil }}
 	m.Start()
 	defer m.Stop()
-	d := model.Device{ID: "dev_a", Revision: 1, DeviceInput: model.DeviceInput{Name: "x", Kind: model.DeviceHTTPJSON, Address: "http://127.0.0.1:1/", IntervalS: 3600, TimeoutS: 1, Enabled: new(false)}}
+	d := model.Device{ID: "dev_a", Revision: 1, DeviceInput: model.DeviceInput{Name: "x", Kind: "http_json", Address: "http://127.0.0.1:1/", IntervalS: 3600, TimeoutS: 1, Enabled: new(false),
+		Config: []byte(`{"fields":[{"path":"a","key":"a","unit":"","scale":1}]}`)}}
 	m.Sync([]model.Device{d})
 	if st := m.Status("dev_a"); st.State != model.StateDisabled {
 		t.Fatalf("выключенное устройство: %+v", st)
@@ -69,17 +71,5 @@ func TestManagerSyncAndTest(t *testing.T) {
 	st := m.Test(context.Background(), d.DeviceInput, nil)
 	if st.State != model.StateDown || st.ErrorKind != "forbidden_address" {
 		t.Fatalf("проверка loopback: %+v", st)
-	}
-}
-
-func TestLookup(t *testing.T) {
-	doc := map[string]any{"sensors": []any{map[string]any{"temp": 21.5}}, "ok": true}
-	if v, ok := lookup(doc, "sensors.0.temp"); !ok || v != 21.5 {
-		t.Fatalf("sensors.0.temp: %v %v", v, ok)
-	}
-	for _, p := range []string{"sensors.1.temp", "sensors.x", "ok.value", "missing"} {
-		if _, ok := lookup(doc, p); ok {
-			t.Errorf("%s не должен находиться", p)
-		}
 	}
 }

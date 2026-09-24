@@ -138,6 +138,12 @@ func (s *Server) routes() {
 	m.Handle("PUT /api/v1/devices/{id}", s.authed(s.updateDevice))
 	m.Handle("DELETE /api/v1/devices/{id}", s.authed(s.deleteDevice))
 
+	m.Handle("GET /api/v1/drivers", s.authed(s.listDrivers))
+	m.Handle("POST /api/v1/drivers/{kind}/discover", s.authed(s.discoverDevices))
+	m.Handle("POST /api/v1/drivers/{kind}/login", s.authed(s.startLogin))
+	m.Handle("GET /api/v1/drivers/{kind}/login/{id}", s.authed(s.checkLogin))
+	m.Handle("POST /api/v1/drivers/{kind}/adopt", s.authed(s.adoptDevice))
+
 	m.Handle("GET /api/v1/secrets", s.authed(s.listSecrets))
 	m.Handle("POST /api/v1/secrets", s.authed(s.createSecret))
 	m.Handle("PUT /api/v1/secrets/{id}", s.authed(s.updateSecret))

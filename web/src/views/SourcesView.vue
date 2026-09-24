@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Plus, Trash2 } from 'lucide-vue-next'
-import { api, type Device, type Secret, type Source, type SourceTestResult, type Status } from '@/api'
+import { Plus, Radar, Trash2 } from 'lucide-vue-next'
+import { api, type Device, type DeviceInput, type DriverInfo, type Secret, type Source, type SourceTestResult, type Status } from '@/api'
 import DeviceForm from '@/components/DeviceForm.vue'
+import DiscoverDialog from '@/components/DiscoverDialog.vue'
 import SecretsPanel from '@/components/SecretsPanel.vue'
 import SourceForm from '@/components/SourceForm.vue'
 import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
@@ -20,6 +21,10 @@ const error = ref<unknown>(null)
 const editing = ref<Source | null | 'new'>(null)
 const tests = ref<Record<string, SourceTestResult | 'running'>>({})
 const editingDevice = ref<Device | null | 'new'>(null)
+const newDevice = ref<Partial<DeviceInput> | undefined>(undefined)
+const drivers = ref<DriverInfo[]>([])
+const discovering = ref<DriverInfo | null>(null)
+const discoverable = computed(() => drivers.value.filter((d) => d.discover || d.accounts))
 const names = computed(() => Object.fromEntries([...store.sources, ...store.devices].map((x) => [x.id, x.name])))
 
 const system = computed(() => store.sources.filter((s) => s.system))
@@ -27,7 +32,8 @@ const user = computed(() => store.sources.filter((s) => !s.system))
 
 async function refresh(signal?: AbortSignal) {
   try {
-    const [, sec, st] = await Promise.all([loadSources(), api.secrets.list(), api.status(signal), loadDevices()])
+    const [, sec, st, , drv] = await Promise.all([loadSources(), api.secrets.list(), api.status(signal), loadDevices(), drivers.value.length ? drivers.value : api.drivers.list()])
+    drivers.value = drv
     secrets.value = sec
     status.value = st
     error.value = null
@@ -61,7 +67,14 @@ async function remove(s: Source) {
 async function onSaved() {
   editing.value = null
   editingDevice.value = null
+  newDevice.value = undefined
   await refresh()
+}
+
+function addDevice(initial?: Partial<DeviceInput>) {
+  newDevice.value = initial
+  discovering.value = null
+  editingDevice.value = 'new'
 }
 
 async function removeDevice(d: Device) {
@@ -151,7 +164,10 @@ const testResult = (id: string) => {
       <div class="toolbar head">
         <h2 id="devices-title">{{ t('devices.title') }}</h2>
         <span class="spacer" />
-        <button type="button" class="btn" @click="editingDevice = 'new'"><Plus :size="16" aria-hidden="true" /> {{ t('devices.add') }}</button>
+        <button v-for="d in discoverable" :key="d.kind" type="button" class="btn" @click="discovering = d">
+          <Radar :size="16" aria-hidden="true" /> {{ discoverable.length > 1 ? `${t('discover.open')}: ${d.title}` : t('discover.open') }}
+        </button>
+        <button type="button" class="btn" @click="addDevice()"><Plus :size="16" aria-hidden="true" /> {{ t('devices.add') }}</button>
       </div>
       <p class="small muted">{{ t('devices.hint') }}</p>
       <p v-if="store.loaded.devices && !store.devices.length" class="muted">{{ t('devices.empty') }}</p>
@@ -204,10 +220,13 @@ const testResult = (id: string) => {
     <DeviceForm
       v-if="editingDevice"
       :device="editingDevice === 'new' ? null : editingDevice"
+      :initial="newDevice"
       :secrets="secrets"
+      :drivers="drivers"
       @saved="onSaved"
       @close="editingDevice = null"
     />
+    <DiscoverDialog v-if="discovering" :driver="discovering" @added="refresh()" @configure="addDevice" @close="discovering = null" />
 
     <SourceForm
       v-if="editing"

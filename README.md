@@ -10,13 +10,17 @@
 
 ## Запуск
 
-В Docker:
+В Docker — готовый образ `ghcr.io/fess932/homelab:latest`, его собирает и публикует CI на каждый push в `main` (amd64 и arm64):
 
 ```sh
 mkdir -p data && sudo chown 1000:1000 data
-docker compose up -d --build
+docker compose up -d
 docker compose exec homedeck homedeck setup-token
 ```
+
+Обновление: `docker compose pull && docker compose up -d`. Для фиксированной версии в `compose.yaml` вместо `latest` укажите `sha-<коммит>` или `vX.Y.Z`.
+
+В `compose.yaml` по умолчанию сеть bridge. Чтобы «Найти устройства» видел устройства Tuya с id и версией, включите там `network_mode: host` (пояснение — в самом файле).
 
 Локально без Docker (Linux, macOS, Windows), нужен [just](https://github.com/casey/just):
 
@@ -34,39 +38,34 @@ just lint
 Один контейнер, один главный процесс `homedeck` и дочерний процесс VictoriaMetrics. Наружу открыт только порт 8080, остальные слушают `127.0.0.1`.
 
 ```mermaid
-flowchart LR
+flowchart TB
     browser["Браузер"]
 
     subgraph container["Контейнер HomeDeck"]
-        subgraph hd["homedeck (Go)"]
-            api["UI и REST API<br/>:8080"]
-            store[("SQLite<br/>app.db")]
-            sched["Проверки<br/>HTTP / TCP"]
-            devs["Опрос устройств<br/>Tuya, HTTP JSON"]
-            rec["Reconciler<br/>конфиг сбора"]
-            watch["Watcher<br/>статус источников"]
-            internal["Внутренние метрики<br/>127.0.0.1:9091/metrics"]
-            egress["Egress-proxy<br/>127.0.0.1:9092"]
-        end
-        vm[("VictoriaMetrics<br/>127.0.0.1:8428")]
+        api["UI и REST API :8080<br/>SQLite app.db"]
+        probes["Проверки сервисов"]
+        devs["Опрос устройств<br/>драйверы drivers/*"]
+        internal["Внутренние метрики<br/>:9091/metrics"]
+        egress["Egress-proxy :9092"]
+        vm[("VictoriaMetrics :8428")]
     end
 
-    subgraph lan["Локальная сеть"]
-        services["Сервисы<br/>Proxmox, Jellyfin, …"]
-        exporters["node_exporter, cAdvisor,<br/>Prometheus endpoints"]
-        devices["Устройства<br/>датчики Tuya, Shelly, …"]
+    subgraph lan[" "]
+        direction LR
+        services["Сервисы в сети"]
+        devices["Устройства в сети<br/>Tuya, HTTP JSON"]
+        exporters["node_exporter, cAdvisor,<br/>Prometheus в сети"]
     end
 
     browser --> api
-    api <--> store
     api -- "запросы графиков" --> vm
-    sched -- "проверки доступности" --> services
-    devs -- "опрос по своим протоколам" --> devices
-    sched & devs --> internal
-    rec -- "scrape.yaml и reload" --> vm
-    watch -- "состояние целей" --> vm
+    probes --> internal
+    devs --> internal
     vm -- "scrape" --> internal
-    vm -- "scrape через proxy" --> egress --> exporters
+    vm --> egress
+    probes --> services
+    devs --> devices
+    egress -- "scrape источников" --> exporters
 ```
 
 - **Настройки** (страницы, сервисы, источники, устройства, пресеты запросов, пользователи) живут в SQLite. Изменение источника или секрета повышает `desired_revision`, и reconciler пересобирает конфиг сбора для VictoriaMetrics.
@@ -119,26 +118,56 @@ sequenceDiagram
     API->>DB: сохранить, desired_revision + 1
     API->>R: kick
     R->>DB: источники и секреты
-    R->>R: scrape.yaml и файлы секретов в runtime-каталоге
-    R->>VM: dry-run: victoria-metrics -promscrape.config.dryRun
-    R->>VM: POST /-/reload (Windows: VM сама перечитывает файл раз в 2 с)
-    loop до 10 секунд
-        R->>VM: vm_promscrape_config_reloads_total, ошибки reload
+    Note over R: собирает scrape.yaml<br/>и файлы секретов
+    R->>VM: dry-run конфига
+    alt конфиг изменился
+        R->>VM: POST /-/reload
+        loop до 10 секунд
+            R->>VM: счётчики перезагрузок и ошибок
+        end
+    else конфиг тот же
+        Note over R,VM: перезагрузка не нужна
     end
-    R->>DB: applied_revision = desired_revision или текст ошибки
-    Note over R,VM: при ошибке продолжает работать прежний конфиг,<br/>ошибка видна на странице «Источники»
+    R->>DB: applied_revision или текст ошибки
+    Note over R,VM: при ошибке работает прежний конфиг,<br/>ошибка видна на странице «Источники»
 ```
 
-## Устройства
+## Устройства и драйверы
 
-Устройства — датчики и приборы со своим API, которые не отдают метрики Prometheus. HomeDeck опрашивает их сам и приводит значения к общему виду: `homedeck_device_value{device_id, device, key, unit}`. Известные величины получают общие ключи (`temperature`, `humidity`, `co2`, `pm25`, `formaldehyde`, `battery`…), поэтому встроенные пресеты «Устройство: …» работают для датчиков разных производителей.
+Устройства — датчики и приборы со своим API, которые не отдают метрики Prometheus. HomeDeck опрашивает их сам через **драйверы** и приводит значения к общему виду: `homedeck_device_value{device_id, device, key, unit}`. Известные величины получают общие ключи (`temperature`, `humidity`, `co2`, `pm25`, `formaldehyde`, `battery`…), поэтому встроенные пресеты «Устройство: …» работают для устройств любых драйверов.
 
-| Драйвер | Как опрашивается | Что нужно |
+| Драйвер | Как опрашивается | Что умеет ещё |
 | --- | --- | --- |
-| Tuya | Локальный протокол 3.3 / 3.4 / 3.5 на порту 6668, версия определяется автоматически | IP, id устройства и `local_key`; JSON устройства из облака Tuya или `tinytuya wizard` вставляется в форму целиком |
-| HTTP JSON | GET по URL, значения по путям вида `meters.0.power` | URL и список полей; при необходимости логин с паролем или токен |
+| `drivers/tuya` | Локальный протокол Tuya 3.3 / 3.4 / 3.5 на порту 6668, версия определяется автоматически | Поиск в сети; подключение аккаунта Smart Life по QR-коду, из которого берутся ключи устройств и описание их значений |
+| `drivers/httpjson` | GET по URL, значения по путям вида `meters.0.power` | — |
 
-Добавляются на странице «Источники → Устройства». Кнопка «Проверить» опрашивает устройство до сохранения и показывает текущие значения. Точки данных Tuya, которых нет в описании устройства, приходят как `dp_<номер>`.
+Как добавить устройство Tuya:
+
+1. «Источники → Устройства → Найти устройства».
+2. Один раз «Подключить аккаунт Smart Life»: ввести код пользователя из приложения (Я → Настройки → Аккаунт и безопасность → Код пользователя) и отсканировать QR-код в приложении.
+3. В списке найденного нажать «Добавить»: адрес придёт из поиска в сети, ключ и описание значений — из аккаунта.
+
+Без аккаунта устройство тоже добавляется: «Настроить» у найденного устройства, затем ключ вручную или вставить JSON устройства (формат облака Tuya или `devices.json` из `tinytuya wizard`).
+
+Облако нужно только при подключении аккаунта и добавлении устройств; опрос идёт по локальной сети. Вход по QR использует тот же API, что интеграция Tuya в Home Assistant, и её публичный идентификатор клиента — своего у HomeDeck нет. Это неофициальное использование, Tuya может его ограничить. Поиск в сети слушает UDP-анонсы устройств (порты 6666, 6667, 7000) и проверяет порт 6668 в подсети; в Docker анонсы доходят только при `network_mode: host`, иначе устройства находятся по порту, но без id.
+
+```mermaid
+flowchart LR
+    core["internal/devices<br/>циклы опроса, /metrics"]
+    reg["drivers<br/>интерфейс и реестр"]
+    tuya["drivers/tuya<br/>протокол, поиск, облако"]
+    httpjson["drivers/httpjson"]
+    api["internal/api<br/>/api/v1/drivers/…"]
+    ui["web/src/drivers/*<br/>формы настроек"]
+
+    core --> reg
+    api --> reg
+    tuya -- "Register" --> reg
+    httpjson -- "Register" --> reg
+    ui -. "config устройства" .-> api
+```
+
+Новый драйвер — пакет `drivers/<имя>`, который реализует `drivers.Driver` (описание, проверка настроек, опрос), при желании `drivers.Discoverer` и `drivers.AccountProvider`, регистрируется в `init()` и подключается в `drivers/all`. В UI — каталог `web/src/drivers/<имя>` с формой настроек и строка в `web/src/drivers/index.ts`.
 
 ## Где что хранится
 
@@ -168,7 +197,8 @@ data/                        HOMEDECK_DATA_DIR, в Docker — /data
 | `internal/store` | SQLite, миграции, атомарные сохранения |
 | `internal/tsdb` | Супервизор VictoriaMetrics, scrape-конфиг и reload, клиент запросов с лимитами |
 | `internal/probe` | HTTP/TCP-проверки и состояния `unknown/up/down/stale/disabled` |
-| `internal/devices` | Драйверы устройств (Tuya, HTTP JSON), циклы опроса, вывод `homedeck_device_*` |
+| `internal/devices` | Циклы опроса устройств и вывод `homedeck_device_*`; конкретные протоколы — в `drivers` |
+| `drivers` | Интерфейс и реестр драйверов устройств; `drivers/tuya`, `drivers/httpjson` |
 | `internal/netguard` | Политика исходящих соединений и egress-proxy |
 | `internal/importer` | Импорт/экспорт HomeDeck YAML и импорт Homer |
 | `tools/fetchvm` | Скачивание VictoriaMetrics нужной версии со сверкой sha256 |

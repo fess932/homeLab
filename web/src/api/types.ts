@@ -240,7 +240,8 @@ export interface SourceTestResult {
   error: string
 }
 
-export type SecretKind = 'basic' | 'bearer' | 'key'
+/** account:<драйвер> — подключённый облачный аккаунт драйвера. */
+export type SecretKind = 'basic' | 'bearer' | 'key' | `account:${string}`
 
 export interface SecretInput {
   name: string
@@ -259,24 +260,8 @@ export interface Secret {
   used_by: string[]
 }
 
-export type DeviceKind = 'tuya' | 'http_json'
-export type TuyaVersion = 'auto' | '3.3' | '3.4' | '3.5'
-
-export interface TuyaDP {
-  dp: string
-  code: string
-  type: string
-  unit: string
-  scale: number
-  range?: string[]
-}
-
-export interface JSONField {
-  path: string
-  key: string
-  unit: Unit
-  scale: number
-}
+/** Тип устройства — имя драйвера из реестра drivers на сервере. */
+export type DeviceKind = string
 
 export interface DeviceInput {
   name: string
@@ -287,8 +272,45 @@ export interface DeviceInput {
   labels: Record<string, string>
   secret_id: string | null
   enabled: boolean
-  tuya?: { device_id: string; version: TuyaVersion; schema: TuyaDP[] }
-  http_json?: { fields: JSONField[] }
+  /** Настройки драйвера; их форма описана в web/src/drivers/<драйвер>. */
+  config: Record<string, unknown>
+}
+
+export interface DriverInfo {
+  kind: string
+  title: string
+  secret_kinds: SecretKind[]
+  secret_required: boolean
+  discover: boolean
+  accounts: boolean
+}
+
+export interface Candidate {
+  name: string
+  address: string
+  config: Record<string, unknown>
+  product_id?: string
+  ref?: string
+  account_id?: string
+  has_key: boolean
+  in_network: boolean
+  online?: boolean
+  note?: string
+}
+
+export interface DiscoverResponse {
+  candidates: Candidate[]
+  subnets: string[]
+  warnings: string[]
+  accounts: { id: string; name: string }[]
+  added: Record<string, string>
+}
+
+export interface DriverLogin {
+  id: string
+  qr: string
+  hint: string
+  expires: string
 }
 
 export interface Reading {
@@ -298,7 +320,7 @@ export interface Reading {
   state?: string
 }
 
-export type DeviceErrorKind = '' | 'dns' | 'connect' | 'timeout' | 'http_status' | 'forbidden_address' | 'tls' | 'auth' | 'protocol' | 'parse'
+export type DeviceErrorKind = '' | 'dns' | 'connect' | 'timeout' | 'http_status' | 'forbidden_address' | 'tls' | 'auth' | 'protocol' | 'parse' | 'cloud'
 
 export interface DeviceStatus {
   state: 'pending' | 'up' | 'down' | 'disabled'

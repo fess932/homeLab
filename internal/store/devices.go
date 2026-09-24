@@ -10,12 +10,6 @@ import (
 
 const deviceCols = "id, name, kind, address, interval_s, timeout_s, labels, secret_id, config, enabled, revision"
 
-// deviceConfig — настройки драйвера; хранятся одним JSON, чтобы новый драйвер не требовал миграции.
-type deviceConfig struct {
-	Tuya     *model.TuyaConfig     `json:"tuya,omitempty"`
-	HTTPJSON *model.HTTPJSONConfig `json:"http_json,omitempty"`
-}
-
 func scanDevice(sc interface{ Scan(...any) error }) (model.Device, error) {
 	var d model.Device
 	var labels, config string
@@ -29,16 +23,13 @@ func scanDevice(sc interface{ Scan(...any) error }) (model.Device, error) {
 	if err := json.Unmarshal([]byte(labels), &d.Labels); err != nil {
 		return d, err
 	}
-	var c deviceConfig
-	if err := json.Unmarshal([]byte(config), &c); err != nil {
-		return d, err
-	}
-	d.Tuya, d.HTTPJSON = c.Tuya, c.HTTPJSON
+	// Настройки драйвера хранятся как есть: новый драйвер не требует миграции.
+	d.Config = json.RawMessage(config)
 	return d, nil
 }
 
 func deviceConfigJSON(in model.DeviceInput) string {
-	return mustJSON(deviceConfig{Tuya: in.Tuya, HTTPJSON: in.HTTPJSON})
+	return string(in.Config)
 }
 
 func (s *Store) ListDevices(ctx context.Context) ([]model.Device, error) {

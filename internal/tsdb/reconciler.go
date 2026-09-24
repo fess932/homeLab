@@ -113,10 +113,17 @@ func (r *Reconciler) Apply(ctx context.Context) error {
 	if err == nil {
 		err = r.validate(ctx, cfg, files)
 	}
+	r.mu.Lock()
+	unchanged := bytes.Equal(cfg, r.current)
+	r.mu.Unlock()
 	if err == nil {
 		err = r.install(cfg, files)
 	}
-	if err == nil {
+	// Ревизия растёт и без изменений сбора (например, при импорте). Тот же конфиг
+	// перезагружать незачем, а в Windows VictoriaMetrics и не перезагрузит его: она
+	// перечитывает файл, только если он изменился. Файлы учётных данных она читает
+	// сама при каждом scrape, перезагрузка для них не нужна.
+	if err == nil && !unchanged {
 		err = r.reload(ctx)
 	}
 	if err != nil {

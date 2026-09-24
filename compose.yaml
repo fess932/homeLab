@@ -1,13 +1,29 @@
+# HomeDeck: один контейнер — панель, проверки, опрос устройств и VictoriaMetrics.
+# Запуск и обновление — README.md и docs/operations.md.
 services:
   homedeck:
-    image: homedeck:local
-    build: .
+    # Готовый образ из GitHub Container Registry, его публикует CI на каждый push в main.
+    # Для фиксированной версии вместо latest: sha-<коммит> или vX.Y.Z. Собрать локально — just image.
+    image: ghcr.io/fess932/homelab:latest
+    # Наружу — только UI и API. Внутренние адреса (VictoriaMetrics :8428, метрики :9091,
+    # egress-proxy :9092) слушают 127.0.0.1 внутри контейнера.
     ports:
       - "8080:8080"
+    # Поиск устройств Tuya («Найти устройства») слушает широковещательные UDP-анонсы
+    # (6666, 6667, 7000). Через bridge-сеть Docker они не доходят: устройства находятся
+    # только по открытому порту 6668, без id и версии. Чтобы поиск видел их полностью,
+    # включите сеть хоста — строку ниже, а блок ports выше закомментируйте (в режиме
+    # host порт 8080 открывается на хосте напрямую). Опрос устройств работает в обоих режимах.
+    # network_mode: host
     volumes:
       - ./data:/data
     environment:
       HOMEDECK_RETENTION: 30d
+      # Имена и IP, по которым открывается панель: защита setup и публичной страницы
+      # от DNS rebinding. Рекомендуется задать.
+      # HOMEDECK_ALLOWED_HOSTS: homedeck.lan,192.168.0.10
+      # Reverse proxy с HTTPS перед панелью: иначе cookie будут без Secure.
+      # HOMEDECK_TRUSTED_PROXIES: 192.168.0.2
     user: "1000:1000"
     read_only: true
     tmpfs:

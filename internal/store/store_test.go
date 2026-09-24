@@ -362,3 +362,31 @@ func TestSessions(t *testing.T) {
 		t.Fatal("другие сессии должны завершиться")
 	}
 }
+
+// Миграция 0003 снимает обёртку {"<драйвер>": {...}} с настроек устройств версии 2.
+func TestMigrationDeviceConfig(t *testing.T) {
+	s, _ := open(t)
+	ctx := context.Background()
+	for _, row := range [][3]string{
+		{"dev_aaaaaaaaaaaaaa", "tuya", `{"tuya":{"device_id":"eb398c7f26966400abs3ju","version":"auto","schema":[]}}`},
+		{"dev_bbbbbbbbbbbbbb", "http_json", `{"http_json":{"fields":[{"path":"a","key":"a","unit":"","scale":1}]}}`},
+	} {
+		if _, err := s.db.ExecContext(ctx, "INSERT INTO devices ("+deviceCols+", created_at) VALUES (?, 'x', ?, 'a', 30, 5, '{}', NULL, ?, 1, 1, 0)", row[0], row[1], row[2]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body, err := migrationsFS.ReadFile("migrations/0003_device_config.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, string(body)); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.ListDevices(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(list[0].Config) != `{"device_id":"eb398c7f26966400abs3ju","version":"auto","schema":[]}` || string(list[1].Config) != `{"fields":[{"path":"a","key":"a","unit":"","scale":1}]}` {
+		t.Fatalf("после миграции: %s / %s", list[0].Config, list[1].Config)
+	}
+}

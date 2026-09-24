@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTuyaJSON } from './tuya'
+import { parseTuyaJSON } from './parse'
 
 const strategy = (code: string, valueType: string, valueDesc: string) => ({
   value_convert: 'default',

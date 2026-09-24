@@ -1,3 +1,6 @@
+// Package devices держит циклы опроса устройств и публикует их значения на
+// внутреннем /metrics. Как опрашивать конкретное устройство, решает драйвер из
+// реестра drivers по полю kind.
 package devices
 
 import (
@@ -12,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fess932/homeLab/drivers"
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/secrets"
 )
@@ -25,16 +29,15 @@ type tracker struct {
 	dev     model.Device
 	mu      sync.Mutex
 	status  model.DeviceStatus
-	version string // версия Tuya, найденная при автоопределении
+	session string // что драйвер запомнил после успешного опроса (например, версию протокола)
 	cancel  context.CancelFunc
 	done    chan struct{}
 }
 
 // Manager держит по циклу опроса на каждое включённое устройство и последние значения в памяти.
 type Manager struct {
-	Secret    SecretFunc
-	UserAgent string
-	Log       *slog.Logger
+	Secret SecretFunc
+	Log    *slog.Logger
 
 	mu       sync.Mutex
 	ctx      context.Context
@@ -131,10 +134,10 @@ func (m *Manager) run(t *tracker) {
 
 func (m *Manager) pollOnce(ctx context.Context, t *tracker) {
 	t.mu.Lock()
-	version := t.version
+	session := t.session
 	t.mu.Unlock()
 	dev := t.dev
-	st := m.poll(ctx, dev, version, nil)
+	st, next := m.poll(ctx, dev, session, nil)
 	if ctx.Err() != nil {
 		return
 	}
@@ -142,10 +145,10 @@ func (m *Manager) pollOnce(ctx context.Context, t *tracker) {
 	defer t.mu.Unlock()
 	prev := t.status
 	if st.State == model.StateUp {
-		t.version = st.Protocol
+		t.session = next
 	} else {
-		// После ошибки версию определяем заново: устройство могли обновить.
-		t.version = ""
+		// После ошибки драйвер начинает с чистого листа: устройство могли обновить.
+		t.session = ""
 		st.LastSuccess = prev.LastSuccess
 		if prev.State != model.StateDown {
 			m.Log.Warn("device poll failed", "device", dev.ID, "name", dev.Name, "err", st.Error)
@@ -154,35 +157,44 @@ func (m *Manager) pollOnce(ctx context.Context, t *tracker) {
 	t.status = st
 }
 
-func (m *Manager) poll(ctx context.Context, d model.Device, version string, inline *secrets.Payload) model.DeviceStatus {
+func (m *Manager) poll(ctx context.Context, d model.Device, session string, inline *secrets.Payload) (model.DeviceStatus, string) {
 	start := time.Now()
 	st := model.DeviceStatus{State: model.StateDown, LastAttempt: model.TimePtr(start), Readings: []model.Reading{}}
+	drv, ok := drivers.Get(d.Kind)
+	if !ok {
+		st.ErrorKind, st.Error = drivers.KindProtocol, "неизвестный тип устройства "+d.Kind
+		return st, ""
+	}
 	var secret secrets.Payload
 	if inline != nil {
 		secret = *inline
 	} else if d.SecretID != nil {
 		var err error
 		if secret, err = m.Secret(ctx, *d.SecretID); err != nil {
-			st.ErrorKind, st.Error = KindAuth, "секрет устройства недоступен: "+err.Error()
-			return st
+			st.ErrorKind, st.Error = drivers.KindAuth, "учётные данные устройства недоступны: "+err.Error()
+			return st, ""
 		}
 	}
 	pctx, cancel := context.WithTimeout(ctx, time.Duration(d.TimeoutS)*time.Second)
 	defer cancel()
-	readings, used, err := poll(pctx, d.DeviceInput, secret, version, m.UserAgent)
+	res, err := drv.Poll(pctx, drivers.Target{DeviceID: d.ID, Address: d.Address, Config: d.Config, Secret: secret, Session: session})
 	st.DurationMS = new(float64(time.Since(start).Microseconds()) / 1000)
 	if err != nil {
-		st.ErrorKind, st.Error = classify(err)
-		return st
+		st.ErrorKind, st.Error = drivers.Classify(err)
+		return st, ""
 	}
-	st.State, st.LastSuccess, st.Protocol, st.Readings = model.StateUp, model.TimePtr(time.Now()), used, readings
-	return st
+	if res.Readings != nil {
+		st.Readings = res.Readings
+	}
+	st.State, st.LastSuccess, st.Protocol = model.StateUp, model.TimePtr(time.Now()), res.Protocol
+	return st, res.Session
 }
 
 // Test опрашивает черновик устройства один раз, ничего не сохраняя. inline — ключ,
 // переданный прямо в запросе вместо сохранённого секрета.
 func (m *Manager) Test(ctx context.Context, in model.DeviceInput, inline *secrets.Payload) model.DeviceStatus {
-	return m.poll(ctx, model.Device{DeviceInput: in}, "", inline)
+	st, _ := m.poll(ctx, model.Device{DeviceInput: in}, "", inline)
+	return st
 }
 
 func (m *Manager) Status(id string) model.DeviceStatus {

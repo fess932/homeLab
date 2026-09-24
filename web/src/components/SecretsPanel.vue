@@ -8,6 +8,9 @@ import { t } from '@/i18n'
 
 const props = defineProps<{ secrets: Secret[]; names?: Record<string, string> }>()
 const usedBy = (s: Secret) => s.used_by.map((id) => props.names?.[id] ?? id).join(', ')
+// Аккаунты драйверов (account:<драйвер>) подключаются входом по QR, заменить их значение вручную нельзя.
+const isAccount = (s: Secret) => s.kind.startsWith('account:')
+const kindLabel = (s: Secret) => t(`sources.secretKinds.${isAccount(s) ? 'account' : s.kind}`)
 const emit = defineEmits<{ changed: [] }>()
 
 const editing = ref<{ id: string | null; input: SecretInput } | null>(null)
@@ -68,11 +71,11 @@ async function remove(s: Secret) {
     <ul class="secrets">
       <li v-for="s in secrets" :key="s.id">
         <strong>{{ s.name }}</strong>
-        <span class="tag">{{ t(`sources.secretKinds.${s.kind}`) }}</span>
+        <span class="tag">{{ kindLabel(s) }}</span>
         <code class="small">{{ s.mask }}</code>
         <span class="small muted">{{ s.used_by.length ? t('sources.usedBy', { list: usedBy(s) }) : t('sources.notUsed') }}</span>
         <span class="spacer" />
-        <button type="button" class="btn small" @click="open(s)">{{ t('sources.secretReplace') }}</button>
+        <button v-if="!isAccount(s)" type="button" class="btn small" @click="open(s)">{{ t('sources.secretReplace') }}</button>
         <button type="button" class="btn small icon danger" :aria-label="t('app.delete')" @click="remove(s)">
           <Trash2 :size="14" aria-hidden="true" />
         </button>

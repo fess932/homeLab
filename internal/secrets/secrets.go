@@ -20,6 +20,8 @@ type Payload struct {
 	Password string `json:"password,omitempty"`
 	Token    string `json:"token,omitempty"`
 	Key      string `json:"key,omitempty"`
+	// Data — данные подключённого облачного аккаунта драйвера (токены и т. п.).
+	Data json.RawMessage `json:"data,omitempty"`
 }
 
 type Box struct {

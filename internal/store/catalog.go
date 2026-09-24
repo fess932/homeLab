@@ -326,6 +326,13 @@ func (s *Store) UpdateSecret(ctx context.Context, id, name, kind, mask string, p
 	})
 }
 
+// ReplaceSecretPayload обновляет только зашифрованное содержимое секрета, например
+// обновлённые токены аккаунта. Конфиг сбора от этого не меняется, ревизия не растёт.
+func (s *Store) ReplaceSecretPayload(ctx context.Context, id string, payload []byte, keyVersion int) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE secrets SET encrypted_payload = ?, key_version = ? WHERE id = ?", payload, keyVersion, id)
+	return err
+}
+
 func (s *Store) DeleteSecret(ctx context.Context, id string) error {
 	return deleteByID(ctx, s.db, "secrets", id)
 }

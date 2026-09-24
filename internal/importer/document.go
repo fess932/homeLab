@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fess932/homeLab/drivers"
 	"github.com/fess932/homeLab/internal/model"
 	"github.com/fess932/homeLab/internal/store"
 	"go.yaml.in/yaml/v3"
@@ -264,6 +265,10 @@ func buildHomeDeck(doc Document, env Env) (store.Snapshot, []Warning, error) {
 			in.Enabled = new(false)
 		}
 		if err := in.Validate(); err != nil {
+			fail(path, err)
+			continue
+		}
+		if err := drivers.Validate(&in); err != nil {
 			fail(path, err)
 			continue
 		}

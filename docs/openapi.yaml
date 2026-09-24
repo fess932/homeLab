@@ -389,7 +389,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/DeviceInput" }
+            schema: { $ref: "#/components/schemas/DeviceWrite" }
       responses:
         "201":
           content:
@@ -405,12 +405,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/DeviceInput"
-                - type: object
-                  properties:
-                    secret: { $ref: "#/components/schemas/SecretInput" }
+            schema: { $ref: "#/components/schemas/DeviceWrite" }
       responses:
         "200":
           content:
@@ -433,7 +428,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/DeviceInput" }
+            schema: { $ref: "#/components/schemas/DeviceWrite" }
       responses:
         "200":
           content:
@@ -444,6 +439,102 @@ paths:
       tags: [monitoring]
       responses:
         "204": { description: ok }
+
+  /api/v1/drivers:
+    get:
+      tags: [monitoring]
+      summary: Драйверы устройств и их возможности
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/DriverInfo" } }
+  /api/v1/drivers/{kind}/discover:
+    post:
+      tags: [monitoring]
+      summary: Поиск устройств в локальной сети и в подключённых аккаунтах
+      description: Занимает несколько секунд. Устройства из сети и аккаунта объединяются по ref; added — уже добавленные устройства HomeDeck по ref.
+      parameters: [{ name: kind, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subnet: { type: string, example: 192.168.0.0/24, description: пусто — подсети интерфейсов HomeDeck }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  candidates: { type: array, items: { $ref: "#/components/schemas/Candidate" } }
+                  subnets: { type: array, items: { type: string } }
+                  warnings: { type: array, items: { type: string } }
+                  accounts: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string } } } }
+                  added: { type: object, additionalProperties: { type: string } }
+  /api/v1/drivers/{kind}/login:
+    post:
+      tags: [monitoring]
+      summary: Начать вход в облачный аккаунт драйвера (Tuya — QR-код для приложения Smart Life)
+      parameters: [{ name: kind, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: { type: string }, example: { user_code: "код из приложения" } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  qr: { type: string, description: содержимое QR-кода }
+                  hint: { type: string }
+                  expires: { type: string, format: date-time }
+        "502": { $ref: "#/components/responses/Error" }
+  /api/v1/drivers/{kind}/login/{id}:
+    get:
+      tags: [monitoring]
+      summary: Подтверждён ли вход; после подтверждения аккаунт сохраняется секретом account:<kind>
+      parameters:
+        - { name: kind, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state: { type: string, enum: [pending, done] }
+                  account: { $ref: "#/components/schemas/Secret" }
+  /api/v1/drivers/{kind}/adopt:
+    post:
+      tags: [monitoring]
+      summary: Добавить устройство из аккаунта; ключ сервер получает из облака сам
+      parameters: [{ name: kind, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_id, ref, address]
+              properties:
+                account_id: { type: string }
+                ref: { type: string }
+                name: { type: string }
+                address: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
+        "502": { $ref: "#/components/responses/Error" }
 
   /api/v1/secrets:
     get:
@@ -1016,44 +1107,47 @@ components:
       required: [name, kind, address]
       properties:
         name: { type: string, maxLength: 100 }
-        kind: { type: string, enum: [tuya, http_json] }
+        kind: { type: string, description: "имя драйвера из GET /api/v1/drivers: tuya, http_json" }
         address: { type: string, description: "tuya — host[:port], порт 6668 по умолчанию; http_json — URL" }
         interval_s: { type: integer, minimum: 5, maximum: 3600, default: 30 }
         timeout_s: { type: integer, minimum: 1, default: 5 }
         labels: { type: object, additionalProperties: { type: string } }
-        secret_id: { type: [string, "null"], description: "tuya — секрет типа key (обязателен для включённого устройства); http_json — basic или bearer" }
+        secret_id: { type: [string, "null"], description: "учётные данные одного из типов DriverInfo.secret_kinds" }
         enabled: { type: boolean, default: true }
-        tuya:
+        config:
           type: object
+          description: |
+            Настройки драйвера, проверяет сам драйвер. tuya: {device_id, version: auto|3.3|3.4|3.5, product_id?,
+            schema: [{dp, code, type, unit, scale, range?}]}. http_json: {fields: [{path, key, unit, scale}]}.
+    DeviceWrite:
+      description: Устройство и, по желанию, новые учётные данные — сервер сохранит их вместе с устройством.
+      allOf:
+        - $ref: "#/components/schemas/DeviceInput"
+        - type: object
           properties:
-            device_id: { type: string }
-            version: { type: string, enum: [auto, "3.3", "3.4", "3.5"], default: auto }
-            schema:
-              type: array
-              items:
-                type: object
-                required: [dp, code, type]
-                properties:
-                  dp: { type: string, example: "2" }
-                  code: { type: string, example: temp_current }
-                  type: { type: string, enum: [Integer, Boolean, Enum, String, Raw, Bitmap, Json] }
-                  unit: { type: string, example: "℃" }
-                  scale: { type: integer, minimum: 0, maximum: 9, description: значение делится на 10^scale }
-                  range: { type: array, items: { type: string } }
-        http_json:
-          type: object
-          properties:
-            fields:
-              type: array
-              minItems: 1
-              items:
-                type: object
-                required: [path, key]
-                properties:
-                  path: { type: string, example: meters.0.power }
-                  key: { type: string, pattern: "^[a-z][a-z0-9_]{0,63}$" }
-                  unit: { type: string }
-                  scale: { type: number, default: 1 }
+            secret: { $ref: "#/components/schemas/SecretInput" }
+    DriverInfo:
+      type: object
+      properties:
+        kind: { type: string }
+        title: { type: string }
+        secret_kinds: { type: array, items: { type: string } }
+        secret_required: { type: boolean }
+        discover: { type: boolean, description: умеет искать устройства в локальной сети }
+        accounts: { type: boolean, description: умеет подключать облачный аккаунт и брать из него устройства }
+    Candidate:
+      type: object
+      properties:
+        name: { type: string }
+        address: { type: string }
+        config: { type: object }
+        product_id: { type: string }
+        ref: { type: string, description: id устройства у драйвера }
+        account_id: { type: string, description: аккаунт, в котором найдено устройство }
+        has_key: { type: boolean, description: ключ известен из аккаунта — устройство добавляется через adopt }
+        in_network: { type: boolean }
+        online: { type: boolean }
+        note: { type: string }
     Reading:
       type: object
       properties:
@@ -1069,7 +1163,7 @@ components:
         last_success: { type: [string, "null"], format: date-time }
         duration_ms: { type: [number, "null"] }
         error: { type: string }
-        error_kind: { type: string, enum: ["", dns, connect, tls, timeout, http_status, forbidden_address, auth, protocol, parse] }
+        error_kind: { type: string, enum: ["", dns, connect, tls, timeout, http_status, forbidden_address, auth, protocol, parse, cloud] }
         protocol: { type: string, description: версия Tuya, с которой удался опрос }
         readings: { type: array, items: { $ref: "#/components/schemas/Reading" } }
     Device:

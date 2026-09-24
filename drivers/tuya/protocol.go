@@ -1,4 +1,4 @@
-package devices
+package tuya
 
 import (
 	"bytes"
@@ -17,6 +17,8 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/fess932/homeLab/drivers"
 )
 
 // Локальный протокол Tuya (порт 6668). Версии 3.3 и 3.4 используют кадры 0x55AA
@@ -37,6 +39,14 @@ const (
 	maxTuyaFrame = 64 << 10
 )
 
+type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
+
+// dialError — до устройства не удалось даже подключиться: перебор версий не поможет.
+type dialError struct{ err error }
+
+func (e *dialError) Error() string { return e.err.Error() }
+func (e *dialError) Unwrap() error { return e.err }
+
 // Порядок перебора при version=auto: сначала новые версии, их больше среди свежих устройств.
 var tuyaAutoOrder = []string{"3.5", "3.4", "3.3"}
 
@@ -52,7 +62,7 @@ type tuyaSession struct {
 // протокола, с которой это удалось.
 func tuyaQuery(ctx context.Context, dial dialFunc, addr, devID string, localKey []byte, version string) (map[string]any, string, error) {
 	if len(localKey) != 16 {
-		return nil, "", &protoError{kind: KindAuth, msg: "local_key должен быть длиной 16 символов"}
+		return nil, "", drivers.Errorf(drivers.KindAuth, "local_key должен быть длиной 16 символов")
 	}
 	if version != "auto" {
 		dps, err := tuyaQueryVersion(ctx, dial, addr, devID, localKey, version)
@@ -75,7 +85,7 @@ func tuyaQuery(ctx context.Context, dial dialFunc, addr, devID string, localKey 
 			return nil, "", err
 		}
 	}
-	return nil, "", &protoError{kind: KindAuth, msg: "устройство не ответило ни по одной версии протокола 3.3–3.5: проверьте local_key и id устройства"}
+	return nil, "", drivers.Errorf(drivers.KindAuth, "устройство не ответило ни по одной версии протокола 3.3–3.5: проверьте local_key и id устройства")
 }
 
 func tuyaQueryVersion(ctx context.Context, dial dialFunc, addr, devID string, localKey []byte, version string) (map[string]any, error) {
@@ -117,7 +127,7 @@ func tuyaQueryVersion(ctx context.Context, dial dialFunc, addr, devID string, lo
 			return dps, nil
 		}
 		if cmd == cmdDPQuery && bytes.Contains(plain, []byte("data unvalid")) {
-			return nil, &protoError{kind: KindProtocol, msg: "устройство не поддерживает запрос состояния (device22)"}
+			return nil, drivers.Errorf(drivers.KindProtocol, "устройство не поддерживает запрос состояния (device22)")
 		}
 	}
 }
@@ -144,11 +154,11 @@ func (s *tuyaSession) negotiate() error {
 		}
 	}
 	if len(resp) < 48 {
-		return &protoError{kind: KindAuth, msg: "устройство не приняло согласование ключа: проверьте local_key"}
+		return drivers.Errorf(drivers.KindAuth, "устройство не приняло согласование ключа: проверьте local_key")
 	}
 	remote := resp[:16]
 	if !hmac.Equal(hmacSHA256(s.realKey, local), resp[16:48]) {
-		return &protoError{kind: KindAuth, msg: "неверный local_key: устройство подписало ответ другим ключом"}
+		return drivers.Errorf(drivers.KindAuth, "неверный local_key: устройство подписало ответ другим ключом")
 	}
 	if err := s.send(cmdSessKeyFinish, hmacSHA256(s.realKey, remote)); err != nil {
 		return err
@@ -196,21 +206,30 @@ func (s *tuyaSession) write55AA(cmd uint32, payload []byte, useHMAC bool) error 
 }
 
 func (s *tuyaSession) write6699(cmd uint32, payload []byte) error {
+	frame, err := frame6699(s.key, s.nextSeq(), cmd, payload)
+	if err != nil {
+		return err
+	}
+	_, err = s.conn.Write(frame)
+	return err
+}
+
+// frame6699 собирает кадр 0x6699: заголовок, случайный IV, AES-GCM с заголовком
+// в качестве дополнительных данных и суффикс.
+func frame6699(key []byte, seq, cmd uint32, payload []byte) ([]byte, error) {
 	iv := make([]byte, 12)
 	if _, err := rand.Read(iv); err != nil {
-		return err
+		return nil, err
 	}
 	hdr := make([]byte, 18)
 	binary.BigEndian.PutUint32(hdr[0:], prefix6699)
-	binary.BigEndian.PutUint32(hdr[6:], s.nextSeq())
+	binary.BigEndian.PutUint32(hdr[6:], seq)
 	binary.BigEndian.PutUint32(hdr[10:], cmd)
 	binary.BigEndian.PutUint32(hdr[14:], uint32(12+len(payload)+16))
-	gcm, _ := cipher.NewGCM(mustAES(s.key))
+	gcm, _ := cipher.NewGCM(mustAES(key))
 	buf := append(hdr, iv...)
 	buf = gcm.Seal(buf, iv, payload, hdr[4:])
-	buf = binary.BigEndian.AppendUint32(buf, suffix6699)
-	_, err := s.conn.Write(buf)
-	return err
+	return binary.BigEndian.AppendUint32(buf, suffix6699), nil
 }
 
 // read принимает один кадр и возвращает команду и расшифрованные данные без кода возврата.
@@ -225,7 +244,7 @@ func (s *tuyaSession) read() (uint32, []byte, error) {
 	case prefix6699:
 		return s.read6699(pfx[:])
 	}
-	return 0, nil, &protoError{kind: KindProtocol, msg: fmt.Sprintf("неизвестный формат кадра %x: это не локальный протокол Tuya", pfx)}
+	return 0, nil, drivers.Errorf(drivers.KindProtocol, fmt.Sprintf("неизвестный формат кадра %x: это не локальный протокол Tuya", pfx))
 }
 
 func (s *tuyaSession) read55AA(pfx []byte) (uint32, []byte, error) {
@@ -240,7 +259,7 @@ func (s *tuyaSession) read55AA(pfx []byte) (uint32, []byte, error) {
 		endLen = 36
 	}
 	if n < uint32(4+endLen) || n > maxTuyaFrame {
-		return 0, nil, &protoError{kind: KindProtocol, msg: "повреждённый кадр"}
+		return 0, nil, drivers.Errorf(drivers.KindProtocol, "повреждённый кадр")
 	}
 	body := make([]byte, n)
 	if _, err := io.ReadFull(s.conn, body); err != nil {
@@ -251,10 +270,10 @@ func (s *tuyaSession) read55AA(pfx []byte) (uint32, []byte, error) {
 	if endLen == 36 {
 		// Ответ на начало согласования ещё подписан исходным ключом.
 		if !hmac.Equal(check, hmacSHA256(s.key, signed)) && !hmac.Equal(check, hmacSHA256(s.realKey, signed)) {
-			return 0, nil, &protoError{kind: KindAuth, msg: "подпись кадра не сходится: неверный local_key или версия протокола"}
+			return 0, nil, drivers.Errorf(drivers.KindAuth, "подпись кадра не сходится: неверный local_key или версия протокола")
 		}
 	} else if binary.BigEndian.Uint32(check) != crc32.ChecksumIEEE(signed) {
-		return 0, nil, &protoError{kind: KindProtocol, msg: "контрольная сумма кадра не сходится"}
+		return 0, nil, drivers.Errorf(drivers.KindProtocol, "контрольная сумма кадра не сходится")
 	}
 	payload := body[4 : len(body)-endLen]
 	if len(payload) == 0 {
@@ -265,7 +284,7 @@ func (s *tuyaSession) read55AA(pfx []byte) (uint32, []byte, error) {
 		payload = bytes.TrimPrefix(payload, versionHeader(s.version))
 		plain, err := ecbDecrypt(s.key, payload)
 		if err != nil {
-			return 0, nil, &protoError{kind: KindAuth, msg: "не удалось расшифровать ответ: неверный local_key или версия протокола"}
+			return 0, nil, drivers.Errorf(drivers.KindAuth, "не удалось расшифровать ответ: неверный local_key или версия протокола")
 		}
 		return cmd, plain, nil
 	default:
@@ -275,7 +294,7 @@ func (s *tuyaSession) read55AA(pfx []byte) (uint32, []byte, error) {
 		}
 		plain, err := ecbDecrypt(key, payload)
 		if err != nil {
-			return 0, nil, &protoError{kind: KindAuth, msg: "не удалось расшифровать ответ: неверный local_key или версия протокола"}
+			return 0, nil, drivers.Errorf(drivers.KindAuth, "не удалось расшифровать ответ: неверный local_key или версия протокола")
 		}
 		return cmd, bytes.TrimPrefix(plain, versionHeader(s.version)), nil
 	}
@@ -289,7 +308,7 @@ func (s *tuyaSession) read6699(pfx []byte) (uint32, []byte, error) {
 	}
 	cmd, n := binary.BigEndian.Uint32(hdr[10:]), binary.BigEndian.Uint32(hdr[14:])
 	if n < 12+16 || n > maxTuyaFrame {
-		return 0, nil, &protoError{kind: KindProtocol, msg: "повреждённый кадр"}
+		return 0, nil, drivers.Errorf(drivers.KindProtocol, "повреждённый кадр")
 	}
 	body := make([]byte, n+4)
 	if _, err := io.ReadFull(s.conn, body); err != nil {
@@ -298,7 +317,7 @@ func (s *tuyaSession) read6699(pfx []byte) (uint32, []byte, error) {
 	gcm, _ := cipher.NewGCM(mustAES(s.key))
 	plain, err := gcm.Open(nil, body[:12], body[12:n], hdr[4:])
 	if err != nil {
-		return 0, nil, &protoError{kind: KindAuth, msg: "не удалось расшифровать ответ: неверный local_key или версия протокола"}
+		return 0, nil, drivers.Errorf(drivers.KindAuth, "не удалось расшифровать ответ: неверный local_key или версия протокола")
 	}
 	// Кадры от устройства начинаются с 4-байтового кода возврата.
 	if len(plain) >= 4 {

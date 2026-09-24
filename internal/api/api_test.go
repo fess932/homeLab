@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/fess932/homeLab/internal/assets"
+	_ "github.com/fess932/homeLab/drivers/all"
 	"github.com/fess932/homeLab/internal/config"
 	"github.com/fess932/homeLab/internal/devices"
 	"github.com/fess932/homeLab/internal/importer"
@@ -677,9 +678,9 @@ func TestDevices(t *testing.T) {
 	}
 
 	in := model.DeviceInput{
-		Name: "Датчик воздуха", Kind: model.DeviceTuya, Address: "192.168.0.235", SecretID: &basic.ID,
+		Name: "Датчик воздуха", Kind: "tuya", Address: "192.168.0.235", SecretID: &basic.ID,
 		Labels: map[string]string{"room": "спальня"},
-		Tuya:   &model.TuyaConfig{DeviceID: "eb398c7f26966400abs3ju", Schema: []model.TuyaDP{{DP: "2", Code: "temp_current", Type: "Integer", Unit: "℃"}}},
+		Config: json.RawMessage(`{"device_id":"eb398c7f26966400abs3ju","schema":[{"dp":"2","code":"temp_current","type":"Integer","unit":"℃"}]}`),
 	}
 	// Логин с паролем не годится ключом шифрования Tuya.
 	h.expect(h.req("POST", "/api/v1/devices", in, nil), 422, "validation")
@@ -688,7 +689,8 @@ func TestDevices(t *testing.T) {
 	h.expect(r, 201, "")
 	var dev model.Device
 	r.json(&dev)
-	if dev.Tuya.Version != "auto" || dev.IntervalS != 30 || !*dev.Enabled || dev.Status.State != model.StatePending {
+	// Драйвер проставил значения по умолчанию в своих настройках.
+	if !strings.Contains(string(dev.Config), `"version":"auto"`) || dev.IntervalS != 30 || !*dev.Enabled || dev.Status.State != model.StatePending {
 		t.Fatalf("устройство после создания: %+v", dev)
 	}
 
@@ -720,4 +722,35 @@ func TestDevices(t *testing.T) {
 	}
 	h.expect(h.req("DELETE", "/api/v1/devices/"+dev.ID, nil, nil), 204, "")
 	h.expect(h.req("DELETE", "/api/v1/secrets/"+key.ID, nil, nil), 204, "")
+
+	// Ключ можно передать вместе с устройством: он сохранится учётными данными.
+	body := map[string]any{"name": "Розетка", "kind": "tuya", "address": "192.168.0.50",
+		"config": map[string]any{"device_id": "bf1234567890abcdef"}, "secret": map[string]any{"kind": "key", "key": "fedcba9876543210"}}
+	r = h.req("POST", "/api/v1/devices", body, nil)
+	h.expect(r, 201, "")
+	r.json(&dev)
+	if dev.SecretID == nil {
+		t.Fatal("ключ из запроса не привязан к устройству")
+	}
+	// Ошибка в настройках драйвера не оставляет после себя учётные данные.
+	before := len(secretsOf(h))
+	body["config"] = map[string]any{"device_id": "x"}
+	h.expect(h.req("POST", "/api/v1/devices", body, nil), 422, "validation")
+	if len(secretsOf(h)) != before {
+		t.Fatal("ключ сохранился без устройства")
+	}
+	unknown := map[string]any{"name": "x", "kind": "zigbee", "address": "x"}
+	h.expect(h.req("POST", "/api/v1/devices", unknown, nil), 422, "validation")
+
+	var infos []map[string]any
+	h.req("GET", "/api/v1/drivers", nil, nil).json(&infos)
+	if len(infos) != 2 {
+		t.Fatalf("драйверы: %v", infos)
+	}
+}
+
+func secretsOf(h *harness) []model.Secret {
+	var list []model.Secret
+	h.req("GET", "/api/v1/secrets", nil, nil).json(&list)
+	return list
 }

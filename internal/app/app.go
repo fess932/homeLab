@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
+	_ "github.com/fess932/homeLab/drivers/all"
 	"github.com/fess932/homeLab/internal/api"
 	"github.com/fess932/homeLab/internal/assets"
 	"github.com/fess932/homeLab/internal/auth"
@@ -85,8 +86,7 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 	syncChecks()
 
 	devs := &devices.Manager{
-		UserAgent: "HomeDeck/" + cfg.Version,
-		Log:       root.With("component", "devices"),
+		Log: root.With("component", "devices"),
 		Secret: func(ctx context.Context, id string) (secrets.Payload, error) {
 			rec, err := st.GetSecret(ctx, id)
 			if err != nil {

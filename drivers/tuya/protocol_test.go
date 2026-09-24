@@ -1,4 +1,4 @@
-package devices
+package tuya
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fess932/homeLab/drivers"
 	"github.com/fess932/homeLab/internal/model"
 )
 
@@ -231,8 +232,8 @@ func TestTuyaWrongKey(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, _, err := tuyaQuery(ctx, plainDial, addr, "dev123456789", []byte("fedcba9876543210"), "3.5")
-	kind, msg := classify(err)
-	if kind != KindAuth && kind != KindProtocol {
+	kind, msg := drivers.Classify(err)
+	if kind != drivers.KindAuth && kind != drivers.KindProtocol {
 		t.Fatalf("неверный ключ должен давать ошибку ключа или протокола: %s %q", kind, msg)
 	}
 	if _, _, err := tuyaQuery(ctx, plainDial, addr, "dev123456789", []byte("short"), "3.5"); err == nil || !strings.Contains(err.Error(), "16 символов") {
@@ -248,7 +249,7 @@ func TestTuyaDialError(t *testing.T) {
 	defer cancel()
 	start := time.Now()
 	_, _, err := tuyaQuery(ctx, plainDial, addr, "dev123456789", []byte(testKey), "auto")
-	if kind, _ := classify(err); kind != "connect" {
+	if kind, _ := drivers.Classify(err); kind != "connect" {
 		t.Fatalf("ожидалась ошибка соединения: %v", err)
 	}
 	// Перебор версий не должен повторять заведомо безуспешное подключение до таймаута.
@@ -258,7 +259,7 @@ func TestTuyaDialError(t *testing.T) {
 }
 
 // Схема и ответ датчика качества воздуха MT15/MT29 (Tuya, протокол 3.5).
-var airSchema = []model.TuyaDP{
+var airSchema = []DP{
 	{DP: "1", Code: "air_quality_index", Type: "Enum", Range: []string{"level_1", "level_2", "level_3"}},
 	{DP: "2", Code: "temp_current", Type: "Integer", Unit: "℃"},
 	{DP: "3", Code: "humidity_value", Type: "Integer", Unit: "%"},
@@ -276,7 +277,7 @@ func TestTuyaReadings(t *testing.T) {
 		t.Fatal("dps не разобраны")
 	}
 	got := map[string]model.Reading{}
-	for _, r := range tuyaReadings(dps, airSchema) {
+	for _, r := range readings(dps, airSchema) {
 		got[r.Key] = r
 	}
 	want := map[string]model.Reading{

@@ -1,10 +1,29 @@
-import type { TuyaDP, TuyaVersion } from '@/api'
+export type TuyaVersion = 'auto' | '3.3' | '3.4' | '3.5'
+
+/** Точка данных устройства Tuya, как её хранит драйвер на сервере (drivers/tuya.DP). */
+export interface TuyaDP {
+  dp: string
+  code: string
+  type: string
+  unit: string
+  scale: number
+  range?: string[]
+}
+
+/** Настройки устройства Tuya в DeviceInput.config (drivers/tuya.Config). */
+export interface TuyaConfig {
+  device_id: string
+  version: TuyaVersion
+  product_id?: string
+  schema: TuyaDP[]
+}
 
 export interface ParsedTuya {
   name: string
   deviceId: string
   localKey: string
   version: TuyaVersion
+  productId: string
   schema: TuyaDP[]
 }
 
@@ -63,6 +82,7 @@ export function parseTuyaJSON(text: string): ParsedTuya {
     deviceId,
     localKey: str(root.local_key) || str(root.key),
     version: (['3.3', '3.4', '3.5'].includes(version) ? version : 'auto') as TuyaVersion,
+    productId: str(root.product_id) || str(root.productKey),
     schema,
   }
 }
