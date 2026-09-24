@@ -126,8 +126,6 @@ export const ru = {
     service: 'Сервис',
     customLink: 'Своя ссылка',
     windows: { '1h': 'за час', '6h': 'за 6 ч', '24h': 'за сутки', '7d': 'за неделю', '30d': 'за 30 дней' },
-    normOk: 'в норме (до {norm})',
-    normOkBelow: 'в норме (от {norm})',
     normAbove: 'выше нормы {norm}',
     normBelow: 'ниже нормы {norm}',
     linkUrl: 'Адрес',

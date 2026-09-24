@@ -239,6 +239,10 @@ type windowAverage struct {
 	Exceeded bool `json:"exceeded"`
 }
 
+// windowCoverage — какую долю окна должны покрывать данные: пока датчик пишет
+// меньше суток, суточного среднего нет вовсе.
+const windowCoverage = 0.9
+
 func (s *Server) widgetData(w http.ResponseWriter, r *http.Request) error {
 	wg, _, err := s.Store.Widget(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -616,6 +620,7 @@ func (s *Server) deviceThresholds(expr string) []model.Threshold {
 }
 
 // windowAverages считает среднее за окно каждой нормы с Window и сравнивает с ней.
+// Окно, которое данные покрывают не целиком, пропускается.
 // Ошибка запроса не ломает виджет: без среднего он показывает текущее значение.
 func (s *Server) windowAverages(r *http.Request, expr string, p model.Preset, thresholds []model.Threshold) []windowAverage {
 	var out []windowAverage
@@ -623,8 +628,16 @@ func (s *Server) windowAverages(r *http.Request, expr string, p model.Preset, th
 		if th.Window == "" {
 			continue
 		}
+		window, _ := model.RangeDuration(th.Window)
 		res, err := s.instant(r, fmt.Sprintf("avg_over_time((%s)[%s])", expr, th.Window), p, nil)
 		if err != nil || len(res.Samples) == 0 || res.Samples[0].Value == nil {
+			continue
+		}
+		first, err := s.instant(r, fmt.Sprintf("tfirst_over_time((%s)[%s])", expr, th.Window), p, nil)
+		if err != nil || len(first.Samples) == 0 || first.Samples[0].Value == nil {
+			continue
+		}
+		if time.Since(time.Unix(int64(*first.Samples[0].Value), 0)).Seconds() < window.Seconds()*windowCoverage {
 			continue
 		}
 		v := *res.Samples[0].Value
