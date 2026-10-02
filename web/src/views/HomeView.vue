@@ -83,7 +83,6 @@ async function load() {
 
 watch(() => route.params.slug, load)
 onMounted(load)
-
 usePolling(async () => {
   if (!loading.value) await loadServices().catch(() => undefined)
 })
