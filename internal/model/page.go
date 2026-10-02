@@ -37,6 +37,7 @@ type Theme struct {
 	Mode              string  `json:"mode"`
 	Accent            string  `json:"accent"`
 	BackgroundAssetID *string `json:"background_asset_id"`
+	BackgroundDim     int     `json:"background_dim"`
 	Density           string  `json:"density"`
 	Columns           int     `json:"columns"`
 }
@@ -233,6 +234,7 @@ func (p *PageInput) Validate() error {
 	v.check(slugRe.MatchString(p.Slug), "slug", "латиница в нижнем регистре, цифры и дефис, до 40 символов")
 	v.check(oneOf(p.Theme.Mode, "system", "light", "dark"), "theme.mode", "system, light или dark")
 	v.check(accentRe.MatchString(p.Theme.Accent), "theme.accent", "цвет вида #RRGGBB")
+	v.check(p.Theme.BackgroundDim >= 0 && p.Theme.BackgroundDim <= 90, "theme.background_dim", "от 0 до 90")
 	v.check(oneOf(p.Theme.Density, "comfortable", "compact"), "theme.density", "comfortable или compact")
 	v.check(p.Theme.Columns == 4 || p.Theme.Columns == 6 || p.Theme.Columns == 8 || p.Theme.Columns == 12, "theme.columns", "4, 6, 8 или 12")
 	v.check(len(p.Groups) <= 50, "groups", "не более 50 групп")

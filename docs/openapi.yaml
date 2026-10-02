@@ -891,6 +891,7 @@ components:
         mode: { type: string, enum: [system, light, dark] }
         accent: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
         background_asset_id: { type: [string, "null"] }
+        background_dim: { type: integer, minimum: 0, maximum: 90, description: "насколько фон приглушён цветом темы, %" }
         density: { type: string, enum: [comfortable, compact] }
         columns: { type: integer, enum: [4, 6, 8, 12], description: колонок на широком экране }
     Breakpoint:

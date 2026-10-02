@@ -32,6 +32,8 @@ export interface Theme {
   mode: ThemeMode
   accent: string
   background_asset_id: string | null
+  /** Насколько фон приглушён цветом темы, 0–90 %. */
+  background_dim?: number
   density: Density
   columns: 4 | 6 | 8 | 12
 }

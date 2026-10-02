@@ -36,6 +36,7 @@
   --font-display: 'Tektur Variable', 'Fira Sans', system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --page-bg-image: none;
+  --page-bg-dim: 0%;
   color-scheme: light;
 }
 
@@ -120,12 +121,16 @@ body {
   color: var(--text);
   background-color: var(--bg);
   background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--bg) var(--page-bg-dim), transparent),
+      color-mix(in srgb, var(--bg) var(--page-bg-dim), transparent)
+    ),
     var(--page-bg-image),
     radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: cover, auto, 32px 32px, 32px 32px;
-  background-position: center, center, -1px -1px, -1px -1px;
+  background-size: auto, cover, auto, 32px 32px, 32px 32px;
+  background-position: center, center, center, -1px -1px, -1px -1px;
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;

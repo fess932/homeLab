@@ -104,6 +104,10 @@ function submit() {
             <option v-for="a in assets" :key="a.id" :value="a.id">{{ a.id }} · {{ a.width }}×{{ a.height }}</option>
           </select>
         </label>
+        <label v-if="theme.background_asset_id" class="field">
+          <span>{{ t('editor.backgroundDim') }}: {{ theme.background_dim ?? 0 }} %</span>
+          <input v-model.number="theme.background_dim" type="range" min="0" max="90" step="5" />
+        </label>
       </fieldset>
     </form>
     <template #footer>

@@ -35,6 +35,7 @@ go.work.sum
 # Каталоги данных локальных запусков: ./data и любые data-* (демо, тесты)
 /data*/
 /homedeck
+/homedeck-newtab.zip
 web/node_modules/
 web/dist/*
 !web/dist/.gitkeep

@@ -44,6 +44,7 @@ func TestPageValidate(t *testing.T) {
 		{"слаг начинается с дефиса", func(p *PageInput) { p.Slug = "-home" }, "slug"},
 		{"колонки не из списка", func(p *PageInput) { p.Theme.Columns = 5 }, "theme.columns"},
 		{"акцент не hex", func(p *PageInput) { p.Theme.Accent = "red" }, "theme.accent"},
+		{"приглушение фона больше 90", func(p *PageInput) { p.Theme.BackgroundDim = 95 }, "theme.background_dim"},
 		{"неизвестная группа", func(p *PageInput) { p.Widgets[0].GroupID = "nope" }, "widgets[0].group_id"},
 		// md всегда 6 колонок, даже если lg шире.
 		{"md вылезает за 6 колонок", func(p *PageInput) { p.Widgets[0].Layout.MD = &Rect{3, 0, 4, 1} }, "widgets[0].layout.md"},

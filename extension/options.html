@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>HomeDeck: новая вкладка</title>
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <form id="form">
+      <h1>Страница для новой вкладки</h1>
+      <label for="url">Адрес публичной страницы HomeDeck</label>
+      <input id="url" type="url" required placeholder="https://home.example.com/public/links?bare" />
+      <button type="submit">Сохранить</button>
+      <p id="saved" hidden>Сохранено. Откройте новую вкладку.</p>
+      <p>Добавьте к адресу <code>?bare</code>, чтобы скрыть шапку страницы.</p>
+    </form>
+    <script src="options.js"></script>
+  </body>
+</html>

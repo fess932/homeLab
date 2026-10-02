@@ -21,6 +21,7 @@ export function applyTheme(theme: Theme | null | undefined) {
     root.style.removeProperty('--accent')
     root.style.removeProperty('--accent-contrast')
     root.style.removeProperty('--page-bg-image')
+    root.style.removeProperty('--page-bg-dim')
     return
   }
   if (theme.mode === 'system') root.removeAttribute('data-theme')
@@ -29,8 +30,13 @@ export function applyTheme(theme: Theme | null | undefined) {
   root.style.setProperty('--accent', theme.accent)
   root.style.setProperty('--accent-contrast', contrastText(theme.accent))
   const bg = assetUrl(theme.background_asset_id)
-  if (bg) root.style.setProperty('--page-bg-image', `url("${bg}")`)
-  else root.style.removeProperty('--page-bg-image')
+  if (bg) {
+    root.style.setProperty('--page-bg-image', `url("${bg}")`)
+    root.style.setProperty('--page-bg-dim', `${theme.background_dim ?? 0}%`)
+  } else {
+    root.style.removeProperty('--page-bg-image')
+    root.style.removeProperty('--page-bg-dim')
+  }
 }
 
 export function usePageTheme(theme: Ref<Theme | null | undefined>) {

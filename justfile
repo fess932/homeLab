@@ -50,9 +50,15 @@ lint: lint-go
 run: build vm
     ./homedeck{{exe}} serve
 
+# Архив расширения Chrome «новая вкладка» для загрузки в Chrome Web Store
+[unix]
+extension:
+    rm -f homedeck-newtab.zip
+    cd extension && zip -r ../homedeck-newtab.zip . -x '.*'
+
 image:
     docker buildx build --platform linux/amd64,linux/arm64 --build-arg VERSION={{version}} -t homedeck:{{version}} .
 
 # Удаляет только игнорируемые git артефакты сборки
 clean:
-    git clean -fdX -- homedeck homedeck.exe web/dist .bin
+    git clean -fdX -- homedeck homedeck.exe homedeck-newtab.zip web/dist .bin

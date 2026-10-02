@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, ApiError, assetUrl, type PublicPage } from '@/api'
 import PageBoard from '@/components/PageBoard.vue'
@@ -7,14 +7,16 @@ import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
 import { createContext, provideWidgetContext } from '@/components/widgets/context'
 import { usePageTheme, useViewportBreakpoint } from '@/composables/theme'
 import { usePolling } from '@/composables/polling'
+import { dropCachedPage, readCachedPage, writeCachedPage } from '@/lib/pageCache'
 import { t } from '@/i18n'
 
-const data = ref<PublicPage | null>(null)
-const error = ref<unknown>(null)
-const loaded = ref(false)
 const bp = useViewportBreakpoint()
 const route = useRoute()
 const slug = computed(() => (typeof route.params.slug === 'string' ? route.params.slug : ''))
+const bare = computed(() => 'bare' in route.query)
+const data = ref<PublicPage | null>(slug.value ? readCachedPage(slug.value) : null)
+const error = ref<unknown>(null)
+const loaded = ref(!!data.value)
 const services = computed(() => new Map((data.value?.services ?? []).map((s) => [s.id, s])))
 const presets = computed(() => new Map((data.value?.presets ?? []).map((p) => [p.id, p])))
 
@@ -29,8 +31,13 @@ usePolling(async () => {
   try {
     data.value = await api.public.page(slug.value)
     error.value = null
+    writeCachedPage(slug.value, data.value)
   } catch (e) {
     error.value = e
+    if (e instanceof ApiError && e.status === 404) {
+      data.value = null
+      dropCachedPage(slug.value)
+    }
   } finally {
     loaded.value = true
   }
@@ -38,11 +45,17 @@ usePolling(async () => {
 
 const missing = computed(() => !slug.value || (error.value instanceof ApiError && error.value.status === 404))
 const logo = computed(() => assetUrl(data.value?.logo_asset_id))
+
+onMounted(() => {
+  if ('serviceWorker' in navigator) {
+    void navigator.serviceWorker.register('/sw.js', { scope: '/public/' }).catch(() => undefined)
+  }
+})
 </script>
 
 <template>
   <div class="page">
-    <header class="pub-head">
+    <header v-if="!bare" class="pub-head">
       <img v-if="logo" :src="logo" alt="" width="32" height="32" />
       <h1>{{ data?.title || t('app.name') }}</h1>
     </header>

@@ -102,6 +102,7 @@ export const ru = {
     accent: 'Акцент',
     background: 'Фон',
     noBackground: 'Без фона',
+    backgroundDim: 'Приглушение фона',
     density: 'Плотность',
     densities: { comfortable: 'Свободная', compact: 'Компактная' },
     columns: 'Колонок на широком экране',
