@@ -8,7 +8,7 @@ import { resetStore, store } from '@/stores/app'
 
 const route = useRoute()
 const router = useRouter()
-const bare = computed(() => route.meta.bare)
+const bare = computed(() => route.matched.length === 0 || route.meta.bare)
 const logo = computed(() => assetUrl(store.settings?.logo_asset_id))
 const title = computed(() => store.settings?.title || t('app.name'))
 

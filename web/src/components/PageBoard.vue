@@ -100,6 +100,9 @@ function removeWidget(id: string) {
           <button type="button" class="btn small icon danger" :aria-label="t('editor.deleteGroup')" @click="removeGroup(g.id)">
             <Trash2 :size="14" aria-hidden="true" />
           </button>
+          <label class="group-private" :title="t('editor.groupPrivateHint')">
+            <input v-model="g.private" type="checkbox" /> {{ t('editor.groupPrivate') }}
+          </label>
           <span class="spacer" />
           <label class="sr-only" :for="`add-${g.id}`">{{ t('editor.addWidget') }}</label>
           <select
@@ -153,6 +156,13 @@ function removeWidget(id: string) {
   gap: 6px;
   align-items: center;
   margin-bottom: var(--gap);
+}
+
+.group-private {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .group-head h2 {

@@ -63,6 +63,8 @@ type Group struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	Collapsed bool   `json:"collapsed"`
+	// Private — группа публичной страницы, которую видит только вошедший пользователь.
+	Private bool `json:"private"`
 }
 
 type Widget struct {
@@ -74,9 +76,9 @@ type Widget struct {
 }
 
 type PageInput struct {
-	Title   string   `json:"title"`
-	Slug    string   `json:"slug"`
-	Order   int      `json:"order"`
+	Title string `json:"title"`
+	Slug  string `json:"slug"`
+	Order int    `json:"order"`
 	// Public — страница целиком открывается без входа по адресу /public/<slug>.
 	Public  bool     `json:"public"`
 	Theme   Theme    `json:"theme"`

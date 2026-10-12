@@ -161,16 +161,37 @@ type publicView struct {
 	Services    []model.Service `json:"services"`
 	// Presets — шаблоны запросов виджетов страницы: подписи, единицы и пороги, без выражений.
 	Presets []model.Preset `json:"presets"`
+	// Authenticated — запрос пришёл с действующей сессией: в ответе есть приватные группы.
+	Authenticated bool `json:"authenticated"`
 }
 
 func (s *Server) publicPageData(r *http.Request) (model.Page, error) {
-	// Публикуется страница целиком: все её группы и виджеты. Закрытая страница
-	// неотличима от несуществующей.
+	// Закрытая страница неотличима от несуществующей. Приватные группы и их виджеты
+	// без сессии в ответ не попадают: для анонима их нет.
 	p, err := s.Store.GetPage(r.Context(), r.PathValue("slug"))
 	if err == nil && !p.Public {
 		err = model.ErrNotFound
 	}
-	return p, err
+	if err != nil || currentSession(r) != nil {
+		return p, err
+	}
+	private := map[string]bool{}
+	groups := []model.Group{}
+	for _, g := range p.Groups {
+		if g.Private {
+			private[g.ID] = true
+		} else {
+			groups = append(groups, g)
+		}
+	}
+	widgets := []model.Widget{}
+	for _, wg := range p.Widgets {
+		if !private[wg.GroupID] {
+			widgets = append(widgets, wg)
+		}
+	}
+	p.Groups, p.Widgets = groups, widgets
+	return p, nil
 }
 
 func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) error {
@@ -217,7 +238,7 @@ func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) error {
 			presets = append(presets, pr)
 		}
 	}
-	writeJSON(w, http.StatusOK, publicView{Title: st.Title, LogoAssetID: st.LogoAssetID, Page: p, Services: services, Presets: presets})
+	writeJSON(w, http.StatusOK, publicView{Title: st.Title, LogoAssetID: st.LogoAssetID, Page: p, Services: services, Presets: presets, Authenticated: currentSession(r) != nil})
 	return nil
 }
 

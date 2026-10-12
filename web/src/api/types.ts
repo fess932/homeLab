@@ -51,6 +51,8 @@ export interface Group {
   id: string
   title: string
   collapsed?: boolean
+  /** Группа публичной страницы, которую сервер отдаёт только вошедшему пользователю. */
+  private?: boolean
 }
 
 export type WidgetType = 'link' | 'links' | 'clock' | 'note' | 'number' | 'chart' | 'status'
@@ -506,6 +508,8 @@ export interface ConfigRevision {
 }
 
 export interface PublicPage {
+  /** Запрос пришёл с действующей сессией: приватные группы включены в ответ. */
+  authenticated?: boolean
   title: string
   logo_asset_id: string | null
   page: Page

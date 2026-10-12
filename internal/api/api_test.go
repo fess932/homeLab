@@ -324,7 +324,7 @@ func TestPublicPage(t *testing.T) {
 	src := h.createSource("nas", nil)
 	pub := h.createService("public", &src.ID)
 	second := h.createService("second", nil)
-	h.createService("private", nil)
+	unlisted := h.createService("private", nil)
 	in := map[string]any{"title": "Дом", "slug": "home", "theme": map[string]any{},
 		"groups": []any{map[string]any{"id": "new_g1", "title": "A"}, map[string]any{"id": "new_g2", "title": "B"}},
 		"widgets": []any{
@@ -368,7 +368,7 @@ func TestPublicPage(t *testing.T) {
 			t.Fatalf("текст ошибки проверки виден анониму: %s", sv.Status.Error)
 		}
 	}
-	if strings.Contains(string(r.body), "private") {
+	if strings.Contains(string(r.body), unlisted.ID) {
 		t.Fatal("приватный сервис в ответе")
 	}
 	// Подписи и единицы виджетов приходят со страницей, выражения запросов — нет.
@@ -379,6 +379,37 @@ func TestPublicPage(t *testing.T) {
 	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 200, "")
 	h.expect(anon.req("GET", "/api/v1/public/home/widgets/wgt_missing/data", nil, nil), 404, "not_found")
 	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[0].ID+"/data?range=2y", nil, nil), 422, "validation")
+	// Приватная группа: аноним не получает ни её, ни её виджеты, ни их сервисы и данные;
+	// с сессией страница приходит целиком.
+	in["groups"].([]any)[1].(map[string]any)["private"] = true
+	h.expect(h.req("PUT", "/api/v1/pages/"+p.ID, in, map[string]string{"If-Match": `"2"`}), 200, "")
+	r = h.req("GET", "/api/v1/pages/"+p.ID, nil, nil)
+	r.json(&p)
+	var hidden struct {
+		Page          model.Page
+		Services      []model.Service
+		Presets       []model.Preset
+		Authenticated bool
+	}
+	r = anon.req("GET", "/api/v1/public/home", nil, nil)
+	h.expect(r, 200, "")
+	r.json(&hidden)
+	if hidden.Authenticated || len(hidden.Page.Groups) != 1 || len(hidden.Page.Widgets) != 1 || len(hidden.Services) != 1 || len(hidden.Presets) != 0 {
+		t.Fatalf("приватная группа видна анониму: %s", r.body)
+	}
+	if strings.Contains(string(r.body), second.ID) || strings.Contains(string(r.body), p.Groups[1].ID) {
+		t.Fatalf("следы приватной группы в ответе анониму: %s", r.body)
+	}
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[0].ID+"/data", nil, nil), 200, "")
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 404, "not_found")
+	h.expect(anon.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[2].ID+"/data", nil, nil), 404, "not_found")
+	r = h.req("GET", "/api/v1/public/home", nil, nil)
+	h.expect(r, 200, "")
+	r.json(&hidden)
+	if !hidden.Authenticated || len(hidden.Page.Groups) != 2 || len(hidden.Page.Widgets) != 3 || len(hidden.Services) != 2 {
+		t.Fatalf("вошедший не видит приватную группу: %s", r.body)
+	}
+	h.expect(h.req("GET", "/api/v1/public/home/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 200, "")
 	// Анонимный клиент не может выполнить произвольный запрос.
 	h.expect(anon.req("POST", "/api/v1/metrics/query", map[string]any{"query": "up"}, nil), 401, "unauthorized")
 	h.expect(anon.req("GET", "/api/v1/widgets/"+p.Widgets[1].ID+"/data", nil, nil), 401, "unauthorized")

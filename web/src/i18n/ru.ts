@@ -74,6 +74,8 @@ export const ru = {
     addGroup: 'Добавить группу',
     addWidget: 'Добавить виджет',
     groupTitle: 'Название группы',
+    groupPrivate: 'Приватная',
+    groupPrivateHint: 'На публичной странице группу видит только вошедший пользователь',
     groupUp: 'Группу выше',
     groupDown: 'Группу ниже',
     deleteGroup: 'Удалить группу',
@@ -553,6 +555,8 @@ export const ru = {
   },
   public: {
     missingTitle: 'Страница не найдена',
+    showPrivate: 'NSFW',
+    showPrivateHint: 'Показать приватные группы',
     missingHint: 'Такой публичной страницы нет или её закрыли.',
   },
   errors: {

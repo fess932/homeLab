@@ -7,7 +7,7 @@ import ApiErrorAlert from '@/components/ui/ApiErrorAlert.vue'
 import { createContext, provideWidgetContext } from '@/components/widgets/context'
 import { usePageTheme, useViewportBreakpoint } from '@/composables/theme'
 import { usePolling } from '@/composables/polling'
-import { dropCachedPage, readCachedPage, writeCachedPage } from '@/lib/pageCache'
+import { dropCachedPage, readCachedPage, withoutPrivate, writeCachedPage } from '@/lib/pageCache'
 import { t } from '@/i18n'
 
 const bp = useViewportBreakpoint()
@@ -43,6 +43,33 @@ usePolling(async () => {
   }
 })
 
+const SHOW_PRIVATE_KEY = 'homedeck:public:show-private'
+
+function storedShowPrivate() {
+  try {
+    return localStorage.getItem(SHOW_PRIVATE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const showPrivate = ref(storedShowPrivate())
+const hasPrivate = computed(() => !!data.value?.authenticated && data.value.page.groups.some((g) => g.private))
+const page = computed(() => {
+  if (!data.value) return null
+  return showPrivate.value ? data.value.page : withoutPrivate(data.value.page)
+})
+
+function setShowPrivate(on: boolean) {
+  showPrivate.value = on
+  try {
+    if (on) localStorage.setItem(SHOW_PRIVATE_KEY, '1')
+    else localStorage.removeItem(SHOW_PRIVATE_KEY)
+  } catch {
+    return
+  }
+}
+
 const missing = computed(() => !slug.value || (error.value instanceof ApiError && error.value.status === 404))
 const logo = computed(() => assetUrl(data.value?.logo_asset_id))
 
@@ -65,8 +92,12 @@ onMounted(() => {
     </div>
     <ApiErrorAlert v-else-if="loaded && !data" :error="error" />
     <p v-if="!loaded" class="muted">{{ t('app.loading') }}</p>
-    <main v-if="data">
-      <PageBoard :page="data.page" :bp="bp" />
+    <label v-if="hasPrivate" class="private-toggle" :title="t('public.showPrivateHint')">
+      <input type="checkbox" :checked="showPrivate" @change="setShowPrivate(($event.target as HTMLInputElement).checked)" />
+      {{ t('public.showPrivate') }}
+    </label>
+    <main v-if="page">
+      <PageBoard :page="page" :bp="bp" />
     </main>
   </div>
 </template>
@@ -77,6 +108,24 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.private-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.private-toggle:hover,
+.private-toggle:focus-within {
+  opacity: 1;
 }
 
 .empty {

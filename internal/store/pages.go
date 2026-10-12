@@ -155,8 +155,8 @@ func writePageContent(ctx context.Context, tx *sql.Tx, pageID string, in model.P
 		return ids[id]
 	}
 	for i, g := range in.Groups {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO page_groups (id, page_id, title, collapsed, ord) VALUES (?, ?, ?, ?, ?)",
-			resolve(g.ID, "grp"), pageID, g.Title, g.Collapsed, i); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO page_groups (id, page_id, title, collapsed, private, ord) VALUES (?, ?, ?, ?, ?, ?)",
+			resolve(g.ID, "grp"), pageID, g.Title, g.Collapsed, g.Private, i); err != nil {
 			return err
 		}
 	}
@@ -198,7 +198,7 @@ func (s *Store) Widget(ctx context.Context, id string) (model.Widget, string, er
 }
 
 func pageGroups(ctx context.Context, q queryer, pageID string) ([]model.Group, error) {
-	rows, err := q.QueryContext(ctx, "SELECT id, title, collapsed FROM page_groups WHERE page_id = ? ORDER BY ord", pageID)
+	rows, err := q.QueryContext(ctx, "SELECT id, title, collapsed, private FROM page_groups WHERE page_id = ? ORDER BY ord", pageID)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func pageGroups(ctx context.Context, q queryer, pageID string) ([]model.Group, e
 	out := []model.Group{}
 	for rows.Next() {
 		var g model.Group
-		if err := rows.Scan(&g.ID, &g.Title, &g.Collapsed); err != nil {
+		if err := rows.Scan(&g.ID, &g.Title, &g.Collapsed, &g.Private); err != nil {
 			return nil, err
 		}
 		out = append(out, g)

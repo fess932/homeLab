@@ -47,6 +47,26 @@ const fresh: PublicPage = {
   },
 }
 
+// Ответ сервера вошедшему пользователю: к публичной группе добавлена приватная.
+const withPrivate: PublicPage = {
+  ...fresh,
+  authenticated: true,
+  page: {
+    ...fresh.page,
+    groups: [...fresh.page.groups, { id: 'grp_secret', title: 'Личное', private: true }],
+    widgets: [
+      ...fresh.page.widgets,
+      {
+        id: 'wgt_secret',
+        group_id: 'grp_secret',
+        type: 'link',
+        config: { service_id: '', url: 'https://secret.example.com', title: 'Секретная ссылка', show_status: false, show_latency: false, metric: null },
+        layout: { lg: { x: 0, y: 0, w: 3, h: 1 } },
+      },
+    ],
+  },
+}
+
 let answer: () => Promise<Response>
 
 function json(body: unknown, status = 200) {
@@ -121,6 +141,36 @@ describe('PublicView', () => {
     expect(w.text()).not.toContain('NAS')
     expect(w.text()).toContain('Страница не найдена')
     expect(localStorage.getItem(KEY)).toBeNull()
+    w.unmount()
+  })
+
+  it('приватная группа скрыта, пока вошедший не включит переключатель', async () => {
+    answer = async () => json(withPrivate)
+    const w = await open('/public/links')
+    await flushPromises()
+    expect(w.text()).toContain('NAS')
+    expect(w.text()).not.toContain('Секретная ссылка')
+
+    await w.find('.private-toggle input').setValue(true)
+    expect(w.text()).toContain('Секретная ссылка')
+    // Приватное в кеш не пишется: после выхода на диске ничего не остаётся.
+    expect(localStorage.getItem(KEY)).not.toContain('Секретная ссылка')
+    expect(localStorage.getItem(KEY)).not.toContain('grp_secret')
+    w.unmount()
+
+    // Выбор переключателя запоминается, но до ответа сервера из кеша видна только публичная часть.
+    answer = () => new Promise<Response>(() => {})
+    const again = await open('/public/links')
+    expect(again.text()).toContain('NAS')
+    expect(again.text()).not.toContain('Секретная ссылка')
+    expect(again.find('.private-toggle').exists()).toBe(false)
+    again.unmount()
+  })
+
+  it('анониму переключатель не показывается', async () => {
+    const w = await open('/public/links')
+    await flushPromises()
+    expect(w.find('.private-toggle').exists()).toBe(false)
     w.unmount()
   })
 

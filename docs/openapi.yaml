@@ -913,6 +913,7 @@ components:
         id: { type: string, description: grp_*; новый — любой уникальный клиентский id вида new_* }
         title: { type: string }
         collapsed: { type: boolean }
+        private: { type: boolean, description: "группа публичной страницы видна только с действующей сессией" }
     WidgetType:
       type: string
       enum: [link, links, clock, note, number, chart, status]
@@ -1352,6 +1353,7 @@ components:
         title: { type: string }
         logo_asset_id: { type: [string, "null"] }
         page: { $ref: "#/components/schemas/Page" }
+        authenticated: { type: boolean, description: "запрос с действующей сессией: приватные группы включены в ответ" }
         services:
           type: array
           description: только сервисы, на которые ссылаются опубликованные виджеты
