@@ -12,12 +12,15 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/fess932/homeLab/internal/auth"
 	"github.com/fess932/homeLab/internal/assets"
 	_ "github.com/fess932/homeLab/drivers/all"
 	"github.com/fess932/homeLab/internal/config"
@@ -215,7 +218,26 @@ func TestSetupAndSession(t *testing.T) {
 	if st.Required {
 		t.Fatal("после setup required=false")
 	}
-	h.expect(h.req("GET", "/api/v1/session", nil, nil), 200, "")
+	r = h.req("GET", "/api/v1/session", nil, nil)
+	h.expect(r, 200, "")
+	if c := r.header.Get("Set-Cookie"); c != "" {
+		t.Fatalf("свежая сессия не должна перевыпускать cookie: %s", c)
+	}
+	// Сессии осталось 10 дней из 30: сервер продлевает её и выдаёт cookie с новым сроком,
+	// иначе браузер удалит cookie через 30 дней после входа, даже при ежедневных заходах.
+	u, _ := url.Parse(h.srv.URL)
+	token := h.client.Jar.Cookies(u)[0].Value
+	if err := h.st.ExtendSession(context.Background(), auth.HashToken(token), 10*24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	r = h.req("GET", "/api/v1/session", nil, nil)
+	h.expect(r, 200, "")
+	if c := r.header.Get("Set-Cookie"); !strings.Contains(c, token) || !strings.Contains(c, "Max-Age=2592000") || !strings.Contains(c, "HttpOnly") {
+		t.Fatalf("cookie не продлена вместе с сессией: %q", c)
+	}
+	if c := h.req("GET", "/api/v1/session", nil, nil).header.Get("Set-Cookie"); c != "" {
+		t.Fatalf("продлённая сессия не должна перевыпускать cookie повторно: %s", c)
+	}
 	var set model.Settings
 	h.req("GET", "/api/v1/settings", nil, nil).json(&set)
 	if set.Title != "Дом" || set.Runtime == nil || set.Runtime.Retention != "30d" {

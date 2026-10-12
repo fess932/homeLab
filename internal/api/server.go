@@ -250,6 +250,8 @@ type ctxSession struct{}
 type sessionInfo struct {
 	store.Session
 	tokenHash []byte
+	// renewed — срок сессии только что продлён: cookie нужно выдать заново с новым сроком.
+	renewed bool
 }
 
 func requestID(r *http.Request) string {
@@ -278,6 +280,11 @@ func (s *Server) public(h handler) http.Handler {
 			return
 		}
 		if sess := s.loadSession(r); sess != nil {
+			if sess.renewed {
+				if c, err := r.Cookie(sessionCookie); err == nil {
+					s.setSessionCookie(w, r, c.Value)
+				}
+			}
 			r = r.WithContext(context.WithValue(r.Context(), ctxSession{}, sess))
 		}
 		if err := h(w, r); err != nil {
@@ -332,10 +339,11 @@ func (s *Server) loadSession(r *http.Request) *sessionInfo {
 	if err != nil {
 		return nil
 	}
+	renewed := false
 	if time.Until(sess.ExpiresAt) < sessionTTL-24*time.Hour {
-		_ = s.Store.ExtendSession(r.Context(), h, sessionTTL)
+		renewed = s.Store.ExtendSession(r.Context(), h, sessionTTL) == nil
 	}
-	return &sessionInfo{Session: sess, tokenHash: h}
+	return &sessionInfo{Session: sess, tokenHash: h, renewed: renewed}
 }
 
 func (s *Server) clientIP(r *http.Request) string {

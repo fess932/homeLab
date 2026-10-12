@@ -104,12 +104,16 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u store.Us
 	if err := s.Store.CreateSession(r.Context(), auth.HashToken(token), u.ID, csrf, sessionTTL); err != nil {
 		return err
 	}
+	s.setSessionCookie(w, r, token)
+	writeJSON(w, http.StatusOK, sessionView{User: userView{u.ID, u.Username}, CSRFToken: csrf})
+	return nil
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
 		Secure: s.isHTTPS(r), MaxAge: int(sessionTTL.Seconds()),
 	})
-	writeJSON(w, http.StatusOK, sessionView{User: userView{u.ID, u.Username}, CSRFToken: csrf})
-	return nil
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) error {

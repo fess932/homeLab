@@ -21,6 +21,7 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2022',
     chunkSizeWarningLimit: 900,
+    modulePreload: { resolveDependencies: (_file, deps, { hostType }) => (hostType === 'html' ? [] : deps) },
   },
   test: {
     environment: 'happy-dom',
