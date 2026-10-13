@@ -128,6 +128,8 @@ type ClockConfig struct {
 	Hour12      bool   `json:"hour12"`
 	ShowDate    bool   `json:"show_date"`
 	ShowSeconds bool   `json:"show_seconds"`
+	// City — город для погоды рядом со временем; пусто — без погоды.
+	City string `json:"city,omitempty"`
 }
 
 type NoteConfig struct {
@@ -191,6 +193,17 @@ func (w Widget) ServiceIDs() []string {
 		}
 	}
 	return nil
+}
+
+// WeatherCity — город, погоду в котором показывают часы.
+func (w Widget) WeatherCity() string {
+	if w.Type == WidgetClock {
+		var c ClockConfig
+		if json.Unmarshal(w.Config, &c) == nil {
+			return strings.TrimSpace(c.City)
+		}
+	}
+	return ""
 }
 
 func (w Widget) ChartRange() string {
@@ -322,6 +335,7 @@ func validateWidgetConfig(v *validator, f string, w Widget) {
 			_, err := time.LoadLocation(c.Timezone)
 			v.check(err == nil, f+".timezone", "неизвестный часовой пояс")
 		}
+		v.check(utf8.RuneCountInString(c.City) <= 100, f+".city", "до 100 символов")
 	case WidgetNote:
 		var c NoteConfig
 		if bad(json.Unmarshal(w.Config, &c)) {

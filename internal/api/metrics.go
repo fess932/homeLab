@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/fess932/homeLab/internal/netguard"
 	"github.com/fess932/homeLab/internal/probe"
 	"github.com/fess932/homeLab/internal/tsdb"
+	"github.com/fess932/homeLab/internal/weather"
 )
 
 const perClientQueries = 4
@@ -229,6 +231,7 @@ type widgetData struct {
 	Thresholds []model.Threshold   `json:"thresholds"`
 	// Averages — средние за окна норм (порогов с Window): суточная норма и т. п.
 	Averages []windowAverage `json:"averages,omitempty"`
+	Weather  *weather.Current `json:"weather,omitempty"`
 }
 
 type windowAverage struct {
@@ -283,6 +286,17 @@ func (s *Server) buildWidgetData(r *http.Request, wg model.Widget, rangeName str
 		}
 		s.withStatus(&sv)
 		data.Status = sv.Status
+	}
+	if city := wg.WeatherCity(); city != "" && s.Weather != nil {
+		cur, err := s.Weather.Now(r.Context(), city)
+		switch {
+		case errors.Is(err, weather.ErrCityNotFound):
+			return data, &Error{Status: http.StatusUnprocessableEntity, Code: "weather", Message: "город «" + city + "» не найден"}
+		case err != nil:
+			s.Log.Warn("weather", "city", city, "err", err)
+			return data, &Error{Status: http.StatusBadGateway, Code: "weather", Message: "погода недоступна"}
+		}
+		data.Weather = &cur
 	}
 	ref := wg.MetricRef()
 	if ref == nil || ref.PresetID == "" {

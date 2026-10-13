@@ -82,6 +82,8 @@ export interface ClockConfig {
   hour12: boolean
   show_date: boolean
   show_seconds: boolean
+  /** Город для погоды рядом со временем; пусто — без погоды. */
+  city?: string
 }
 export interface NoteConfig {
   markdown: string
@@ -452,6 +454,16 @@ export interface WidgetData {
   status?: CheckStatus
   thresholds?: Threshold[]
   averages?: WindowAverage[]
+  weather?: Weather
+}
+
+export interface Weather {
+  city: string
+  /** °C */
+  temperature: number
+  /** Код явления WMO. */
+  code: number
+  is_day: boolean
 }
 
 export type TsdbState = 'starting' | 'running' | 'restarting' | 'stopped' | 'failed'

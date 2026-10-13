@@ -201,6 +201,10 @@ async function submit() {
             <option v-for="z in zones" :key="z" :value="z" />
           </datalist>
         </label>
+        <label class="field">
+          <span>{{ t('widgets.weatherCity') }}</span>
+          <input v-model="cfg.city" class="input" maxlength="100" />
+        </label>
         <label class="field check"><input v-model="cfg.hour12" type="checkbox" /> {{ t('widgets.hour12') }}</label>
         <label class="field check"><input v-model="cfg.show_date" type="checkbox" /> {{ t('widgets.showDate') }}</label>
         <label class="field check"><input v-model="cfg.show_seconds" type="checkbox" /> {{ t('widgets.showSeconds') }}</label>

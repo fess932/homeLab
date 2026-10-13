@@ -929,7 +929,7 @@ components:
           description: |
             link:   { service_id, show_status: bool, show_latency: bool, metric: MetricRef|null }
             links:  { title, service_ids: string[] }
-            clock:  { timezone: IANA|"", hour12: bool, show_date: bool, show_seconds: bool }
+            clock:  { timezone: IANA|"", hour12: bool, show_date: bool, show_seconds: bool, city?: string ≤ 100; город для погоды }
             note:   { markdown: string ≤ 10000; Markdown без HTML }
             number: { title, metric: MetricRef, decimals: 0..6 }
             chart:  { title, metric: MetricRef, range: RangeName, stacked: bool }
@@ -1261,6 +1261,14 @@ components:
         instant: { $ref: "#/components/schemas/InstantResult" }
         status: { $ref: "#/components/schemas/CheckStatus" }
         thresholds: { type: array, items: { $ref: "#/components/schemas/Threshold" } }
+        weather:
+          description: Погода сейчас для часов с городом, по данным Open-Meteo.
+          type: object
+          properties:
+            city: { type: string }
+            temperature: { type: number, description: "°C" }
+            code: { type: integer, description: Код явления WMO }
+            is_day: { type: boolean }
 
     Status:
       type: object

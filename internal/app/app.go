@@ -29,6 +29,7 @@ import (
 	"github.com/fess932/homeLab/internal/secrets"
 	"github.com/fess932/homeLab/internal/store"
 	"github.com/fess932/homeLab/internal/tsdb"
+	"github.com/fess932/homeLab/internal/weather"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -138,7 +139,7 @@ func Run(ctx context.Context, cfg config.Config, ui fs.FS, root *slog.Logger, on
 
 	apiSrv := api.New(api.Deps{
 		Config: cfg, Store: st, Box: box, Scheduler: scheduler, Devices: devs, Supervisor: sup, Reconciler: rec, Watcher: watcher,
-		TSDB: client, Assets: assetSvc, Favicons: favicon.New(netguard.Transport(nil)), Importer: imp, UI: ui, Log: root.With("component", "api"),
+		TSDB: client, Assets: assetSvc, Favicons: favicon.New(netguard.Transport(nil)), Weather: weather.New(netguard.Transport(nil)), Importer: imp, UI: ui, Log: root.With("component", "api"),
 		SetupToken: setup.token, SetupDone: setup.done, OnChecks: syncChecks, OnDevices: syncDevices, Disk: disk.usage,
 	})
 

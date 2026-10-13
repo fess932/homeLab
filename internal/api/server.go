@@ -30,6 +30,7 @@ import (
 	"github.com/fess932/homeLab/internal/secrets"
 	"github.com/fess932/homeLab/internal/store"
 	"github.com/fess932/homeLab/internal/tsdb"
+	"github.com/fess932/homeLab/internal/weather"
 )
 
 const (
@@ -50,6 +51,7 @@ type Deps struct {
 	TSDB       *tsdb.Client
 	Assets     *assets.Service
 	Favicons   *favicon.Finder
+	Weather    *weather.Client
 	Importer   *importer.Service
 	UI         fs.FS
 	Log        *slog.Logger
